@@ -1,8 +1,8 @@
 #include "../includes/Utils.hpp"
+#include "../includes/Database.hpp"
 
 namespace			fs = std::filesystem;
-
-static std::mutex	g_titlesMutex;
+static std::mutex g_file_mutex;
 
 static void	processImages(const std::string &img_dir)
 {
@@ -42,36 +42,82 @@ static void	processImages(const std::string &img_dir)
 	g_progressCount = 0;
 }
 
-static void	songsThread(const std::vector<std::string> &songFiles, size_t start, size_t end, std::vector<std::string> &titles)
+static void	songsThread(const std::vector<std::string> &songFiles, size_t start, size_t end, const std::string &dbPath)
 {
-	for (size_t i = start; i < end; ++i)
-	{
-		const std::string &path = songFiles[i];
-		TagLib::FileRef file(path.c_str());
-		std::string title;
+	size_t	i;
+	Database	db(dbPath + "/songs.db");
 
-		if (!file.isNull() && file.tag())
-			title = file.tag()->title().to8Bit(true);
+	if (!db.open()) {
+		std::cerr << "Failed to open database.\n";
+		return;
+	}
+
+	i = start;
+	while (i < end)
+	{
+		const std::string			&path = songFiles[i];
+		TagLib::MPEG::File			file(path.c_str());
+		std::ostringstream			buffer;
+		TagLib::ID3v2::Tag			*tag;
+		TagLib::ID3v2::FrameList	frames;
+
+		buffer << "=== Metadata for: " << path << " ===" << std::endl;
+		if (!file.isValid() || !file.ID3v2Tag())
+			buffer << "No valid ID3v2 tag found." << std::endl << std::endl;
 		else
-			title = "Unknown Title";
+		{
+			tag = file.ID3v2Tag();
+			frames = tag->frameList();
+			for (TagLib::ID3v2::FrameList::Iterator it = frames.begin(); it != frames.end(); ++it)
+			{
+				TagLib::String		id = (*it)->frameID();
+				TagLib::String		val = (*it)->toString();
+
+				if (id == "APIC" || val.isEmpty())
+					continue;
+				buffer << "[" << id.to8Bit(true) << "] ";
+				buffer << val.to8Bit(true) << std::endl;
+			}
+
+			buffer << std::endl;
+		}
 
 		{
-			std::lock_guard<std::mutex> lock(g_titlesMutex);
-			titles.push_back(title);
+			std::lock_guard<std::mutex>	lock(g_file_mutex);
+			std::ofstream				outfile("all_metadata_dump.txt", std::ios::app);
+			if (outfile.is_open())
+				outfile << buffer.str();
 		}
+
 		displayProgress(g_progressCount++, songFiles.size());
+		++i;
 	}
+	db.close();
 }
 
-static void	processSongs(const std::string &songs_dir)
+static void	processSongs(const t_paths &paths)
 {
-	const std::vector<std::string> songFiles = getFiles<std::string>(songs_dir, ".mp3");
+	Database db(paths.root + "/songs.db");
+
+	if (!db.open()) {
+		std::cerr << "Failed to open database.\n";
+		return;
+	}
+
+	if (!db.initSchema()) {
+		std::cerr << "Failed to initialize schema.\n";
+		db.close();
+		return;
+	}
+
+	db.close();
+
+	const std::vector<std::string> songFiles = getFiles<std::string>(paths.songs, ".mp3");
 	size_t	total = songFiles.size();
 
-	log("Found " + std::to_string(total) + " songs in " + songs_dir + ".");
+	log("Found " + std::to_string(total) + " songs in " + paths.songs + ".");
 	g_startTime = std::chrono::steady_clock::now();
 
-	std::vector<std::string>	titles;
 	unsigned int				Nthreads = std::thread::hardware_concurrency();
 	if (Nthreads == 0)
 		Nthreads = 4;
@@ -81,7 +127,7 @@ static void	processSongs(const std::string &songs_dir)
 	{
 		size_t start = i * (total / Nthreads);
 		size_t end = (i == Nthreads - 1) ? total : start + (total / Nthreads);
-		threads.emplace_back(songsThread, std::ref(songFiles), start, end, std::ref(titles));
+		threads.emplace_back(songsThread, std::ref(songFiles), start, end, std::ref(paths.root));
 	}
 	for (auto &t : threads)
 		t.join();
@@ -108,7 +154,7 @@ int	main(int argc, char **argv)
 	redirectStderrToFile("errors.log");
 
 	processImages(paths.images);
-	processSongs(paths.songs);
+	processSongs(paths);
 
 	return 0;
 }

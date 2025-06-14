@@ -22,6 +22,11 @@
 
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
+#include <taglib/mpegfile.h>
+#include <taglib/id3v2tag.h>
+#include <taglib/id3v2frame.h>
+
+#define PROGRESS_BAR_WIDTH 60
 
 /**
  * @brief Atomic counter for progress tracking
@@ -39,6 +44,7 @@ typedef struct s_paths
 {
 	std::string	images;
 	std::string	songs;
+	std::string	root;
 }	t_paths;
 
 /**

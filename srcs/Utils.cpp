@@ -6,9 +6,8 @@ std::mutex								g_coutMutex;
 
 void	displayProgress(const size_t current, const size_t total)
 {
-	const int		barWidth = 60;
 	float			progress = (float)current / (float)total;
-	int				pos = (int)(barWidth * progress);
+	int				pos = (int)(PROGRESS_BAR_WIDTH * progress);
 	float			percent = progress * 100.0f;
 
 	static auto		startTime = std::chrono::steady_clock::now();
@@ -16,7 +15,7 @@ void	displayProgress(const size_t current, const size_t total)
 	static float	lastPercent = -1.0f;
 
 	static std::deque<long long>	durationList;
-	static const size_t			maxPoints = 50;
+	static const size_t				maxPoints = 50;
 
 	auto now = std::chrono::steady_clock::now();
 
@@ -60,7 +59,7 @@ void	displayProgress(const size_t current, const size_t total)
 				<< remMin << ":" << (remSec < 10 ? "0" : "") << remSec << " "
 				<< "[";
 
-		for (int i = 0; i < barWidth; ++i)
+		for (int i = 0; i < PROGRESS_BAR_WIDTH; ++i)
 		{
 			if (i <= pos)
 				std::cout << "#";
@@ -134,6 +133,12 @@ t_paths	getPathsFromEnv(const std::string &env_path)
 	t_paths paths;
 	paths.images = getEnvVar(env_path, "IMG_DIR");
 	paths.songs = getEnvVar(env_path, "SONGS_DIR");
+	paths.root = getEnvVar(env_path, "ROOT_DIR");
+	if (paths.root.empty())
+	{
+		// If ROOT_DIR is not set, use the directory of the .env file
+		paths.root = env_path.substr(0, env_path.find_last_of("/\\"));
+	}
 
 	if (paths.images.empty() || paths.songs.empty())
 	{
