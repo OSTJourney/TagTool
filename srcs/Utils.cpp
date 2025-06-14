@@ -1,43 +1,76 @@
 #include "../includes/Utils.hpp"
 
-std::atomic<size_t> g_progressCount(0);
-std::chrono::steady_clock::time_point g_startTime;
+std::atomic<size_t>						g_progressCount(0);
+std::chrono::steady_clock::time_point	g_startTime;
+std::mutex								g_coutMutex;
 
 void	displayProgress(const size_t current, const size_t total)
 {
-	const int	barWidth = 60;
-	float		progress = float(current) / float(total);
-	int			pos = static_cast<int>(barWidth * progress);
+	const int		barWidth = 60;
+	float			progress = (float)current / (float)total;
+	int				pos = (int)(barWidth * progress);
+	float			percent = progress * 100.0f;
 
-	auto	elapsed = std::chrono::steady_clock::now() - g_startTime;
-	auto	elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+	static auto		startTime = std::chrono::steady_clock::now();
+	static auto		lastTime = startTime;
+	static float	lastPercent = -1.0f;
 
-	long long	estimatedTotalMs = 0;
-	long long	remainingMs = 0;
+	static std::deque<long long>	durationList;
+	static const size_t			maxPoints = 50;
 
-	if (current > 0)
+	auto now = std::chrono::steady_clock::now();
+
+	if (current == 0 || percent < lastPercent)
 	{
-		estimatedTotalMs = static_cast<long long>(elapsedMs / progress);
-		remainingMs = estimatedTotalMs - elapsedMs;
+		startTime = now;
+		lastTime = now;
+		lastPercent = -1.0f;
+		durationList.clear();
 	}
-
-	int	rem_min = static_cast<int>(remainingMs / 1000 / 60);
-	int	rem_sec = static_cast<int>((remainingMs / 1000) % 60);
-
-	std::cout << current << "/" << total << " "
-			<< rem_min << ":" << (rem_sec < 10 ? "0" : "") << rem_sec << " "
-			<< "[";
-
-	for (int i = 0; i < barWidth; ++i)
+	else if (percent - lastPercent >= 0.1f)
 	{
-		if (i <= pos)
-			std::cout << "#";
-		else
-			std::cout << "-";
-	}
+		auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastTime).count();
+		lastTime = now;
 
-	std::cout << "] " << int(progress * 100.0) << " %\r";
-	std::cout.flush();
+		durationList.push_back(durationMs);
+		if (durationList.size() > maxPoints)
+			durationList.pop_front();
+
+		long long recentSum = 0;
+		for (long long d : durationList)
+			recentSum += d;
+		double recentAvg = durationList.empty() ? 0.0 : (double)recentSum / durationList.size();
+
+		auto totalElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
+		double percentPoints = percent * 10.0f;
+		double globalAvg = percentPoints > 0.0 ? totalElapsedMs / percentPoints : 0.0;
+
+		double weightedAvg = 0.5 * recentAvg + 0.5 * globalAvg;
+
+		int	remainingPoints = (int)((1000.0f - percentPoints) + 0.5f);
+		long long remainingMs = (long long)(weightedAvg * remainingPoints);
+
+		int	remMin = (int)(remainingMs / 1000 / 60);
+		int	remSec = (int)((remainingMs / 1000) % 60);
+
+		lastPercent = percent;
+
+		std::lock_guard<std::mutex> lock(g_coutMutex);
+		std::cout << current << "/" << total << " "
+				<< remMin << ":" << (remSec < 10 ? "0" : "") << remSec << " "
+				<< "[";
+
+		for (int i = 0; i < barWidth; ++i)
+		{
+			if (i <= pos)
+				std::cout << "#";
+			else
+				std::cout << "-";
+		}
+
+		std::cout << "] " << std::fixed << std::setprecision(1) << percent << " %\r";
+		std::cout.flush();
+	}
 }
 
 void	log(std::string message)
@@ -54,6 +87,7 @@ void	log(std::string message)
 
 	localtime_r(&now_c, &local_tm);
 
+	std::lock_guard<std::mutex> lock(g_coutMutex);
 	std::cout << "[" << std::setfill('0')
 		<< std::setw(2) << local_tm.tm_hour << ":"
 		<< std::setw(2) << local_tm.tm_min << ":"
@@ -108,4 +142,13 @@ t_paths	getPathsFromEnv(const std::string &env_path)
 	}
 
 	return paths;
+}
+
+void	redirectStderrToFile(const std::string &filepath)
+{
+	int	fd = open(filepath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd != -1)
+		dup2(fd, STDERR_FILENO);
+	else
+		std::cerr << "Failed to redirect stderr to " << filepath << "\n";
 }

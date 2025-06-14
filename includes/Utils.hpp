@@ -4,17 +4,24 @@
 # include <atomic>
 # include <chrono>
 # include <cstdlib>
+# include <fcntl.h>
 # include <filesystem>
 # include <fstream>
 # include <iomanip>
 # include <iostream>
+# include <mutex>
 # include <sstream>
+# include <thread>
+# include <unistd.h>
 # include <vector>
 
 # pragma GCC diagnostic ignored "-Woverloaded-virtual"
 	# include <opencv2/opencv.hpp>
 	# include <opencv2/img_hash.hpp>
 # pragma GCC diagnostic pop
+
+#include <taglib/fileref.h>
+#include <taglib/tag.h>
 
 /**
  * @brief Atomic counter for progress tracking
@@ -25,6 +32,8 @@ extern std::atomic<size_t>						g_progressCount;
  * @brief Global start time for measuring elapsed time
  */
 extern std::chrono::steady_clock::time_point	g_startTime;
+
+extern std::mutex g_coutMutex;
 
 typedef struct s_paths
 {
@@ -54,6 +63,13 @@ void	log(std::string message);
  * @brief Reads the .env file and returns a t_paths struct with images and songs paths
  */
 t_paths	getPathsFromEnv(const std::string &env_path);
+
+/**
+ * @brief Redirects stderr to a file
+ *
+ * @param filepath Path to the file where stderr will be redirected
+ */
+void	redirectStderrToFile(const std::string &filepath);
 
 /**
  * @brief Recursively find files with a given extension
