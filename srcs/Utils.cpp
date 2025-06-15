@@ -1,8 +1,8 @@
 #include "../includes/Utils.hpp"
 
-std::atomic<size_t>						g_progressCount(0);
-std::chrono::steady_clock::time_point	g_startTime;
-std::mutex								g_coutMutex;
+
+static std::mutex	g_coutMutex;
+static std::mutex	g_logMutex;
 
 void	displayProgress(const size_t current, const size_t total)
 {
@@ -55,47 +55,55 @@ void	displayProgress(const size_t current, const size_t total)
 		lastPercent = percent;
 
 		std::lock_guard<std::mutex> lock(g_coutMutex);
+		
+		std::cout << "\r\033[K";
 		std::cout << current << "/" << total << " "
-				<< remMin << ":" << (remSec < 10 ? "0" : "") << remSec << " "
-				<< "[";
-
+				  << remMin << ":" << (remSec < 10 ? "0" : "") << remSec << " [";
 		for (int i = 0; i < PROGRESS_BAR_WIDTH; ++i)
+			std::cout << (i <= pos ? '#' : '-');
+		std::cout << "] ";
 		{
-			if (i <= pos)
-				std::cout << "#";
-			else
-				std::cout << "-";
+			std::lock_guard<std::mutex> stats_lock(g_statsMutex);
+			std::cout << std::fixed << std::setprecision(1)
+					  << percent << " % | new: " << g_stats.newFiles
+					  << ", updated: "  << g_stats.updatedFiles
+					  << ", images: "   << g_stats.newImages
+					  << ", errors: "   << g_stats.errors;
 		}
 
-		std::cout << "] " << std::fixed << std::setprecision(1) << percent << " %\r";
 		std::cout.flush();
 	}
 }
 
-void	log(std::string message)
+
+void	log(std::string message, bool console)
 {
-	std::chrono::steady_clock::time_point	now;
-	std::chrono::duration<double>			time_span;
-	std::time_t								now_c;
-	std::tm									local_tm;
-
-	now = std::chrono::steady_clock::now();
-
 	std::chrono::system_clock::time_point	now_sys = std::chrono::system_clock::now();
-	now_c = std::chrono::system_clock::to_time_t(now_sys);
+	std::time_t								now_c = std::chrono::system_clock::to_time_t(now_sys);
+	std::tm									local_tm;
 
 	localtime_r(&now_c, &local_tm);
 
-	std::lock_guard<std::mutex> lock(g_coutMutex);
-	std::cout << "[" << std::setfill('0')
+	std::chrono::duration<double>			time_span = now_sys.time_since_epoch();
+	long									ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_span).count() % 1000;
+
+	std::ostringstream oss;
+	oss << "[" << std::setfill('0')
 		<< std::setw(2) << local_tm.tm_hour << ":"
 		<< std::setw(2) << local_tm.tm_min << ":"
-		<< std::setw(2) << local_tm.tm_sec;
+		<< std::setw(2) << local_tm.tm_sec << "."
+		<< std::setw(3) << ms << "] " << message << "\n";
 
-	time_span = now_sys.time_since_epoch();
-	long ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_span).count() % 1000;
-
-	std::cout << "." << std::setw(3) << ms << "] " << message << "\n";
+	{
+		std::lock_guard<std::mutex> lock(g_logMutex);
+		if (g_logFile.is_open())
+			g_logFile << oss.str();
+	{
+		std::lock_guard<std::mutex> cout_lock(g_coutMutex);
+		if (console)
+			std::cout << oss.str();
+	}
+	}
 }
 
 /**

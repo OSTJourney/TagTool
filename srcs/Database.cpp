@@ -151,3 +151,16 @@ bool Database::beginTransaction() {
 bool Database::commitTransaction() {
 	return execute("COMMIT;");
 }
+
+unsigned int Database::getLastSongId() {
+	const std::string sql = "SELECT MAX(CAST(id AS INTEGER)) FROM songs;";
+	if (auto s = prepare(sql)) {
+		if (sqlite3_step(*s) == SQLITE_ROW) {
+			int lastId = sqlite3_column_int(*s, 0);
+			sqlite3_finalize(*s);
+			return static_cast<unsigned int>(lastId);
+		}
+		sqlite3_finalize(*s);
+	}
+	return 0;
+}

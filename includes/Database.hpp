@@ -44,6 +44,8 @@ class Database {
 
 		bool beginTransaction();
 		bool commitTransaction();
+
+		unsigned int getLastSongId();
 	private:
 		sqlite3 *_db = nullptr;
 		std::string _path;

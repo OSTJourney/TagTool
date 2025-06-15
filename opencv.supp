@@ -1,0 +1,176 @@
+{
+   Opencv_logger
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*log*
+}
+{
+   dynlib1
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:malloc
+   fun:strdup
+   fun:_dl_map_object
+   fun:dl_open_worker_begin
+   fun:_dl_catch_exception
+   fun:dl_open_worker
+   fun:_dl_catch_exception
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_exception
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen_implementation
+   fun:dlopen@@GLIBC_2.34
+   fun:_ZN3tbb6detail2r112dynamic_loadEPKcPKNS1_23dynamic_link_descriptorEmb
+   fun:_ZN3tbb6detail2r112dynamic_linkEPKcPKNS1_23dynamic_link_descriptorEmPPvi
+   fun:_ZN3tbb6detail2r127initialize_handler_pointersEv
+   fun:__pthread_once_slow.isra.0
+   fun:pthread_once@@GLIBC_2.34
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:_ZN3tbb6detail2r1L41initialize_cache_aligned_allocate_handlerEmm
+   fun:_ZN3tbb6detail2r122cache_aligned_allocateEm
+}
+{
+   dynlib2
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:malloc
+   fun:_dl_new_object
+   fun:_dl_map_object_from_fd
+   fun:_dl_map_object
+   fun:dl_open_worker_begin
+   fun:_dl_catch_exception
+   fun:dl_open_worker
+   fun:_dl_catch_exception
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_exception
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen_implementation
+   fun:dlopen@@GLIBC_2.34
+   fun:_ZN3tbb6detail2r112dynamic_loadEPKcPKNS1_23dynamic_link_descriptorEmb
+   fun:_ZN3tbb6detail2r112dynamic_linkEPKcPKNS1_23dynamic_link_descriptorEmPPvi
+   fun:_ZN3tbb6detail2r127initialize_handler_pointersEv
+   fun:__pthread_once_slow.isra.0
+   fun:pthread_once@@GLIBC_2.34
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:_ZN3tbb6detail2r1L41initialize_cache_aligned_allocate_handlerEmm
+}
+{
+   dynlib3
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:_Znwm
+   fun:getIPPSingleton
+   fun:_ZN2cv3ipp14getIppFeaturesEv
+   fun:__IppInitializer__
+   fun:__static_initialization_and_destruction_0
+   fun:_GLOBAL__sub_I_main.cpp
+   fun:call_init
+   fun:call_init
+   fun:_dl_init
+   obj:/usr/lib/ld-linux-x86-64.so.2
+}
+{
+   dynlib4
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:calloc
+   fun:calloc
+   fun:_dl_check_map_versions
+   fun:dl_open_worker_begin
+   fun:_dl_catch_exception
+   fun:dl_open_worker
+   fun:_dl_catch_exception
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_exception
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen_implementation
+   fun:dlopen@@GLIBC_2.34
+   fun:_ZN3tbb6detail2r112dynamic_loadEPKcPKNS1_23dynamic_link_descriptorEmb
+   fun:_ZN3tbb6detail2r112dynamic_linkEPKcPKNS1_23dynamic_link_descriptorEmPPvi
+   fun:_ZN3tbb6detail2r127initialize_handler_pointersEv
+   fun:__pthread_once_slow.isra.0
+   fun:pthread_once@@GLIBC_2.34
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:_ZN3tbb6detail2r1L41initialize_cache_aligned_allocate_handlerEmm
+   fun:_ZN3tbb6detail2r122cache_aligned_allocateEm
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:_ZN3tbb6detail2r114__TBB_InitOnce7add_refEv.part.0
+}
+{
+   dynlib5
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:malloc
+   fun:add_to_global_resize
+   fun:dl_open_worker_begin
+   fun:_dl_catch_exception
+   fun:dl_open_worker
+   fun:_dl_catch_exception
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_exception
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen_implementation
+   fun:dlopen@@GLIBC_2.34
+   fun:_ZN3tbb6detail2r112dynamic_loadEPKcPKNS1_23dynamic_link_descriptorEmb
+   fun:_ZN3tbb6detail2r112dynamic_linkEPKcPKNS1_23dynamic_link_descriptorEmPPvi
+   fun:_ZN3tbb6detail2r127initialize_handler_pointersEv
+   fun:__pthread_once_slow.isra.0
+   fun:pthread_once@@GLIBC_2.34
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:_ZN3tbb6detail2r1L41initialize_cache_aligned_allocate_handlerEmm
+   fun:_ZN3tbb6detail2r122cache_aligned_allocateEm
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:_ZN3tbb6detail2r114__TBB_InitOnce7add_refEv.part.0
+}
+{
+   dynlib6
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:calloc
+   fun:calloc
+   fun:_dl_new_object
+   fun:_dl_map_object_from_fd
+   fun:_dl_map_object
+   fun:dl_open_worker_begin
+   fun:_dl_catch_exception
+   fun:dl_open_worker
+   fun:_dl_catch_exception
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_exception
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen_implementation
+   fun:dlopen@@GLIBC_2.34
+   fun:_ZN3tbb6detail2r112dynamic_loadEPKcPKNS1_23dynamic_link_descriptorEmb
+   fun:_ZN3tbb6detail2r112dynamic_linkEPKcPKNS1_23dynamic_link_descriptorEmPPvi
+   fun:_ZN3tbb6detail2r127initialize_handler_pointersEv
+   fun:__pthread_once_slow.isra.0
+   fun:pthread_once@@GLIBC_2.34
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:UnknownInlinedFun
+   fun:_ZN3tbb6detail2r1L41initialize_cache_aligned_allocate_handlerEmm
+}

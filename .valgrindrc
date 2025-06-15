@@ -1,0 +1,7 @@
+--leak-check=full
+--show-leak-kinds=all
+--track-origins=yes
+--read-var-info=yes
+--num-callers=20
+
+--suppressions=opencv.supp

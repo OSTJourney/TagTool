@@ -1,12 +1,13 @@
 NAME			= tagtool
 CXX				= g++
-CXXFLAGS		= -Wall -Wextra -Werror -O3
+CXXFLAGS		= -Wall -Wextra -Werror -O3 -g
 CPPFLAGS		= -Iincludes
 SRCS_DIR		= srcs
 OBJS_DIR		= objs
 
 SRCS			=	$(SRCS_DIR)/main.cpp \
 					$(SRCS_DIR)/Database.cpp \
+					$(SRCS_DIR)/Songs.cpp \
 					$(SRCS_DIR)/Utils.cpp 
 
 OBJS			= $(SRCS:$(SRCS_DIR)/%.cpp=$(OBJS_DIR)/%.o)
