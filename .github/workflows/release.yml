@@ -35,7 +35,7 @@ jobs:
     - name: Upload binary
       env:
         VERSION: ${{ github.event.release.tag_name }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tagtool-binary-${{ env.VERSION }}
         path: tagtool-${{ env.VERSION }}
@@ -43,7 +43,7 @@ jobs:
     - name: Upload compressed archive
       env:
         VERSION: ${{ github.event.release.tag_name }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tagtool-archive-${{ env.VERSION }}
         path: tagtool-${{ env.VERSION }}.tar.gz
