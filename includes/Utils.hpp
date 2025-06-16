@@ -21,12 +21,14 @@
 	# include <opencv2/img_hash.hpp>
 # pragma GCC diagnostic pop
 
+#include <taglib/attachedpictureframe.h>
 # include <taglib/id3v2tag.h>
 # include <taglib/mpegfile.h>
 # include <taglib/textidentificationframe.h>
 
-
 # define PROGRESS_BAR_WIDTH 60
+# define PIC_QUALITY 512 // 512 is a good compromise between quality and size for images
+# define HAMMING_THRESHOLD 8 // Threshold for perceptual hash similarity
 
 /**
  * @brief Atomic counter for progress tracking
@@ -141,6 +143,6 @@ std::vector<StringType> getFiles(const std::string &path, const std::string &ext
 	return result;
 }
 
-void	processSongs(const t_paths &paths);
+void	processSongs(const t_paths &paths, std::vector<cv::Mat> &hashes);
 
 #endif

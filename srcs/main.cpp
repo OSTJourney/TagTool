@@ -5,10 +5,16 @@ std::chrono::steady_clock::time_point	g_startTime;
 std::atomic<size_t>						g_progressCount(0);
 std::ofstream							g_logFile;
 
-static void	processImages(const std::string &img_dir)
+static std::vector<cv::Mat>	processImages(const std::string &img_dir)
 {
 	std::vector<cv::String> imgFiles = getFiles<cv::String>(img_dir, ".jpg");
 	size_t	total = imgFiles.size();
+
+	if (total == 0)
+	{
+		log("No images found in " + img_dir + ".", true);
+		return {};
+	}
 
 	log("Generating perceptual hashes for " + std::to_string(total) + " images...", true);
 	g_startTime = std::chrono::steady_clock::now();
@@ -41,6 +47,7 @@ static void	processImages(const std::string &img_dir)
 	std::cout << "\n";
 	log("Done! Processed " + std::to_string(total) + " images in " + oss.str() + " seconds.", true);
 	g_progressCount = 0;
+	return hashes;
 }
 
 int	main(int argc, char **argv)
@@ -55,8 +62,8 @@ int	main(int argc, char **argv)
 	t_paths	paths = getPathsFromEnv(".env");
 	redirectStderrToFile("errors.log");
 
-	processImages(paths.images);
-	processSongs(paths);
+	std::vector<cv::Mat> hashes = processImages(paths.images);
+	processSongs(paths, hashes);
 
 	if (g_logFile.is_open())
 		g_logFile.close();

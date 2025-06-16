@@ -10,7 +10,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install dependencies
       run: |
@@ -25,25 +25,13 @@ jobs:
         make fclean
         make all
         mv tagtool tagtool-${VERSION}
-
-    - name: Archive build
-      env:
-        VERSION: ${{ github.event.release.tag_name }}
-      run: |
         tar czf tagtool-${VERSION}.tar.gz tagtool-${VERSION}
 
-    - name: Upload binary
-      env:
-        VERSION: ${{ github.event.release.tag_name }}
-      uses: actions/upload-artifact@v4
+    - name: Upload to GitHub Release
+      uses: softprops/action-gh-release@v2
       with:
-        name: tagtool-binary-${{ env.VERSION }}
-        path: tagtool-${{ env.VERSION }}
-
-    - name: Upload compressed archive
+        files: |
+          tagtool-${{ github.event.release.tag_name }}
+          tagtool-${{ github.event.release.tag_name }}.tar.gz
       env:
-        VERSION: ${{ github.event.release.tag_name }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: tagtool-archive-${{ env.VERSION }}
-        path: tagtool-${{ env.VERSION }}.tar.gz
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

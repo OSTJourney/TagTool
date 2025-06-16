@@ -5,6 +5,7 @@ static std::atomic<size_t>	g_NumDbEntries(0);
 static std::mutex			g_numDbEntriesMutex;
 std::mutex					g_statsMutex;
 t_stats						g_stats = {0, 0, 0, 0};
+static std::mutex			g_imageMutex;
 
 /**
  * @brief Handle a new file by adding a "42id" frame to the ID3v2 tag.
@@ -90,20 +91,93 @@ static bool	extractID3v2Metadata(const TagLib::ID3v2::FrameList &frames,
 	return has42id;
 }
 
-static void	songsThread(const std::vector<std::string> &song_files, size_t start, size_t end, const std::string &db_path)
+/**
+ * @brief Process a song's embedded image: decode, resize, hash and save.
+ * 
+ * Extracts the embedded picture (APIC frame) from an MP3 file's ID3v2 tag,
+ * resizes it to PIC_QUALITY x PIC_QUALITY using high-quality interpolation,
+ * converts it to grayscale to compute a perceptual hash, checks for duplicates,
+ * and saves the image in JPEG format with high quality if unique.
+ * 
+ * @param paths Struct containing output paths (e.g., image directory).
+ * @param hashes Vector storing perceptual hashes of previously processed images.
+ * @param hasher OpenCV perceptual hash algorithm instance.
+ * @param tag Pointer to the ID3v2 tag of the song file.
+ */
+static void	processSongImage(const t_paths &paths, std::vector<cv::Mat> &hashes, cv::Ptr<cv::img_hash::PHash> &hasher, TagLib::ID3v2::Tag *tag)
+{
+	// Retrieve ID3v2 tag and get the list of attached pictures (APIC frames)
+	const TagLib::ID3v2::FrameList &frames = tag->frameList("APIC");
+
+	if (frames.isEmpty())
+		return;
+
+	// Extract the first attached picture frame
+	TagLib::ID3v2::AttachedPictureFrame *apic = dynamic_cast<TagLib::ID3v2::AttachedPictureFrame *>(frames.front());
+	if (!apic)
+		return;
+
+	// Get raw image data from the attached picture frame
+	TagLib::ByteVector imgData = apic->picture();
+
+	std::vector<uchar> imgBuffer(imgData.begin(), imgData.end());
+	cv::Mat rawData(1, imgBuffer.size(), CV_8UC1, imgBuffer.data());
+
+	// Decode the image from memory buffer as a color image
+	cv::Mat img = cv::imdecode(rawData, cv::IMREAD_COLOR);
+	if (img.empty())
+		return;
+
+	// Resize image to fixed size with high-quality Lanczos interpolation
+	cv::resize(img, img, cv::Size(PIC_QUALITY, PIC_QUALITY), 0, 0, cv::INTER_LANCZOS4);
+
+	// Set JPEG compression params: quality = 95 (high quality)
+	std::vector<int> compression_params;
+	compression_params.push_back(cv::IMWRITE_JPEG_QUALITY);
+	compression_params.push_back(95);
+
+	// Convert resized image to grayscale for hashing
+	cv::Mat gray;
+	cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+
+	cv::Mat hash;
+	hasher->compute(gray, hash);
+
+	std::lock_guard<std::mutex> lock(g_imageMutex);
+
+	// Check if this hash is already present (duplicate detection)
+	for (const cv::Mat &existing : hashes)
+	{
+		if (cv::norm(hash, existing, cv::NORM_HAMMING) < HAMMING_THRESHOLD)
+			return; // Duplicate found: skip saving
+	}
+
+	hashes.push_back(hash.clone());
+
+	std::string output_path = paths.images + "/" + std::to_string(hashes.size()) + ".jpg";
+	cv::imwrite(output_path, img, compression_params);
+	{
+		std::lock_guard<std::mutex> stats_lock(g_statsMutex);
+		g_stats.newImages++;
+	}
+}
+
+static void	songsThread(const std::vector<std::string> &song_files, size_t start, size_t end, const t_paths &paths, std::vector<cv::Mat> &hashes)
 {
 	size_t		i;
-	Database	db(db_path + "/songs.db");
+	Database	db(paths.root + "/songs.db");
+
+	if (start >= end || end > song_files.size()) {
+		std::cerr << "Invalid range [" << start << ", " << end << ")\n";
+		return;
+	}
 
 	if (!db.open()) {
 		std::cerr << "Failed to open database.\n";
 		return;
 	}
 
-	if (start >= end || end > song_files.size()) {
-		std::cerr << "Invalid range [" << start << ", " << end << ")\n";
-		return;
-	}
+	cv::Ptr<cv::img_hash::PHash> hasher = cv::img_hash::PHash::create();
 
 	i = start;
 	while (i < end)
@@ -125,6 +199,7 @@ static void	songsThread(const std::vector<std::string> &song_files, size_t start
 				bool has42id = extractID3v2Metadata(frames, metadata);
 				if (!has42id)
 					handleNewFile(path, tag, file);
+				processSongImage(paths, hashes, hasher, tag);
 			}
 		} catch (const std::exception &e) {
 			std::cerr << "Exception while processing " << path << ": " << e.what() << "\n";
@@ -139,7 +214,7 @@ static void	songsThread(const std::vector<std::string> &song_files, size_t start
 }
 
 
-void	processSongs(const t_paths &paths)
+void	processSongs(const t_paths &paths, std::vector<cv::Mat> &hashes)
 {
 	Database db(paths.root + "/songs.db");
 
@@ -169,12 +244,13 @@ void	processSongs(const t_paths &paths)
 	if (Nthreads == 0)
 		Nthreads = 4;
 
+	auto hasher = cv::img_hash::PHash::create();
 	std::vector<std::thread> threads;
 	for (unsigned int i = 0; i < Nthreads; ++i)
 	{
 		size_t start = i * (total / Nthreads);
 		size_t end = (i == Nthreads - 1) ? total : start + (total / Nthreads);
-		threads.emplace_back(songsThread, std::ref(songFiles), start, end, std::ref(paths.root));
+		threads.emplace_back(songsThread, std::ref(songFiles), start, end, std::ref(paths), std::ref(hashes));
 	}
 	for (auto &t : threads)
 		t.join();
@@ -188,6 +264,7 @@ void	processSongs(const t_paths &paths)
 	std::ostringstream oss;
 	oss << std::fixed << std::setprecision(3) << seconds;
 
+	std::cout << "\n";
 	log("Done! Processed " + std::to_string(total) + " songs in " + oss.str() + " seconds.", true);
 	g_progressCount = 0;
 }

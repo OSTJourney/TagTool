@@ -16,7 +16,8 @@ OBJS			= $(SRCS:$(SRCS_DIR)/%.cpp=$(OBJS_DIR)/%.o)
 OPENCV_CFLAGS	= $(shell pkg-config --cflags opencv4 2>/dev/null)
 OPENCV_LDFLAGS	=	-lopencv_core \
 					-lopencv_imgcodecs \
-					-lopencv_img_hash
+					-lopencv_img_hash \
+					-lopencv_imgproc
 
 TAGLIB_CFLAGS	= $(shell pkg-config --cflags taglib)
 TAGLIB_LDFLAGS	= $(shell pkg-config --libs taglib)
