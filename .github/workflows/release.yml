@@ -30,8 +30,7 @@ jobs:
     - name: Upload to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
+        token: ${{ secrets.BUILD_TOKEN }}
         files: |
           tagtool-${{ github.event.release.tag_name }}
           tagtool-${{ github.event.release.tag_name }}.tar.gz
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
