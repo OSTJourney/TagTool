@@ -7,57 +7,70 @@
 # include <fcntl.h>
 # include <filesystem>
 # include <fstream>
-# include <iomanip>
 # include <iostream>
 # include <mutex>
-# include <sstream>
 # include <system_error>
-# include <thread>
 # include <unistd.h>
 # include <vector>
 
+# pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Woverloaded-virtual"
-	# include <opencv2/opencv.hpp>
-	# include <opencv2/img_hash.hpp>
+    #include <opencv2/opencv.hpp>
+    #include <opencv2/img_hash.hpp>
 # pragma GCC diagnostic pop
 
-#include <taglib/attachedpictureframe.h>
+# include <taglib/attachedpictureframe.h>
 # include <taglib/id3v2tag.h>
 # include <taglib/mpegfile.h>
 # include <taglib/textidentificationframe.h>
 
-# define PROGRESS_BAR_WIDTH 60
-# define PIC_QUALITY 512 // 512 is a good compromise between quality and size for images
-# define HAMMING_THRESHOLD 8 // Threshold for perceptual hash similarity
+# define PROGRESS_BAR_WIDTH	60
+# define PIC_QUALITY		512 // 512 is a good compromise between quality and size for images
+# define HAMMING_THRESHOLD	8 // Threshold for perceptual hash similarity
 
 /**
  * @brief Atomic counter for progress tracking
  */
-extern std::atomic<size_t>						g_progressCount;
+extern	std::atomic<size_t>						g_progressCount;
 
 /**
  * @brief Global start time for measuring elapsed time
  */
-extern std::chrono::steady_clock::time_point	g_startTime;
+extern	std::chrono::steady_clock::time_point	g_startTime;
 
-typedef struct s_paths
+/**
+ * @brief Mutex for protecting statistics updates
+ * @details Contains:
+ * 	- images:	Path to images directory
+ * 	- songs:	Path to songs directory
+ * 	- root:		Root directory
+ */
+typedef struct	s_paths
 {
-	std::string	images;
-	std::string	songs;
-	std::string	root;
+	std::string	images;	// path to images directory
+	std::string	songs;	// path to songs directory
+	std::string	root;	// root directory
 }	t_paths;
 
-typedef struct s_stats
+/**
+ * @brief Structure to hold processing statistics
+ * @details Contains:
+ * 	- newFiles:		number of new files processed
+ * 	- updatedFiles:	number of files updated
+ * 	- newImages:	number of new images added
+ * 	- errors:		number of errors encountered
+ */
+typedef struct	s_stats
 {
-	size_t	newFiles;
-	size_t	updatedFiles;
-	size_t	newImages;
-	size_t	errors;
+	size_t	newFiles;		// number of new files processed
+	size_t	updatedFiles;	// number of files updated
+	size_t	newImages;		// number of new images added
+	size_t	errors;			// number of errors encountered
 }	t_stats;
 
-extern std::mutex			g_statsMutex;
-extern t_stats				g_stats;
-extern std::ofstream		g_logFile;
+extern std::mutex			g_statsMutex;	// mutex for statistics
+extern t_stats				g_stats;		// global statistics
+extern std::ofstream		g_logFile;		// global log file
 
 
 /**
@@ -80,7 +93,9 @@ void	displayProgress(const size_t current, const size_t total);
 void	log(std::string message, bool console);
 
 /**
- * @brief Reads the .env file and returns a t_paths struct with images and songs paths
+ * @brief Parse a simple .env file and return paths
+ * @param env_path The path to the .env file
+ * @return t_paths The structure containing the paths
  */
 t_paths	getPathsFromEnv(const std::string &env_path);
 
@@ -143,6 +158,11 @@ std::vector<StringType> getFiles(const std::string &path, const std::string &ext
 	return result;
 }
 
+/**
+ * @brief Process songs to compute their perceptual hashes
+ * @param paths The paths structure containing songs directory
+ * @param hashes Vector to store computed hashes
+ */
 void	processSongs(const t_paths &paths, std::vector<cv::Mat> &hashes);
 
 #endif
