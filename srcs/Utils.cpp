@@ -4,20 +4,22 @@
 static std::mutex	g_coutMutex;
 static std::mutex	g_logMutex;
 
-void	displayProgress(const size_t current, const size_t total)
+void	displayProgress(
+	const size_t	current,
+	const size_t	total)
 {
-	float			progress = (float)current / (float)total;
-	int				pos = (int)(PROGRESS_BAR_WIDTH * progress);
-	float			percent = progress * 100.0f;
+	float			progress = (float)current / (float)total;	// Progress ratio between 0.0 and 1.0
+	int				pos = (int)(PROGRESS_BAR_WIDTH * progress);	// Position in the progress bar
+	float			percent = progress * 100.0f;				// Percentage completed
 
-	static auto		startTime = std::chrono::steady_clock::now();
-	static auto		lastTime = startTime;
-	static float	lastPercent = -1.0f;
+	static auto		startTime = std::chrono::steady_clock::now();	// Retain start time across calls
+	static auto		lastTime = startTime;							// Retain last update time across calls
+	static float	lastPercent = -1.0f;										// Retain last percent update across calls
 
-	static std::deque<long long>	durationList;
-	static const size_t				maxPoints = 50;
+	static std::deque<long long>	durationList;	// List of recent durations for averaging
+	static const size_t				maxPoints = 50;	// Maximum number of points to keep for averaging
 
-	auto now = std::chrono::steady_clock::now();
+	auto now = std::chrono::steady_clock::now();	// Current time
 
 	if (current == 0 || percent < lastPercent)
 	{
@@ -28,37 +30,38 @@ void	displayProgress(const size_t current, const size_t total)
 	}
 	else if (percent - lastPercent >= 0.1f)
 	{
-		auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastTime).count();
+		auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastTime).count();	// Duration since last update
 		lastTime = now;
 
 		durationList.push_back(durationMs);
 		if (durationList.size() > maxPoints)
 			durationList.pop_front();
 
-		long long recentSum = 0;
+		long long	recentSum = 0; // Sum of recent durations
 		for (long long d : durationList)
 			recentSum += d;
-		double recentAvg = durationList.empty() ? 0.0 : (double)recentSum / durationList.size();
+		double	recentAvg = durationList.empty() ? 0.0 : (double)recentSum / durationList.size(); // Average of recent durations
 
-		auto totalElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
-		double percentPoints = percent * 10.0f;
-		double globalAvg = percentPoints > 0.0 ? totalElapsedMs / percentPoints : 0.0;
+		auto	totalElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();	// Total elapsed time since start
+		double	percentPoints = percent * 10.0f;																			// Total points completed (0 to 1000)
+		double	globalAvg = percentPoints > 0.0 ? totalElapsedMs / percentPoints : 0.0;										// Global average duration per point
 
-		double weightedAvg = 0.5 * recentAvg + 0.5 * globalAvg;
+		double	weightedAvg = 0.5 * recentAvg + 0.5 * globalAvg;	// Weighted average of recent and global averages
 
-		int	remainingPoints = (int)((1000.0f - percentPoints) + 0.5f);
-		long long remainingMs = (long long)(weightedAvg * remainingPoints);
+		int			remainingPoints = (int)((1000.0f - percentPoints) + 0.5f);	// Remaining points to complete
+		long long	remainingMs = (long long)(weightedAvg * remainingPoints);	// Estimated remaining time in milliseconds
 
-		int	remMin = (int)(remainingMs / 1000 / 60);
-		int	remSec = (int)((remainingMs / 1000) % 60);
+		int	remMin = (int)(remainingMs / 1000 / 60);	// Remaining minutes
+		int	remSec = (int)((remainingMs / 1000) % 60);	// Remaining seconds
 
 		lastPercent = percent;
 
 		std::lock_guard<std::mutex> lock(g_coutMutex);
 		
-		std::cout << "\r\033[K";
-		std::cout << current << "/" << total << " "
-				  << remMin << ":" << (remSec < 10 ? "0" : "") << remSec << " [";
+		std::cout	<< "\x1b[u\x1b[2K";	// Restore cursor position and clear line
+		/* Print progress bar with the format
+		 *				current/total remMin:remSec [##########----------] XX.X % | new: N, updated: N, images: N, errors: N */
+		std::cout <<	current << "/" << total << " " << remMin << ":" << (remSec < 10 ? "0" : "") << remSec << " [";
 		for (int i = 0; i < PROGRESS_BAR_WIDTH; ++i)
 			std::cout << (i <= pos ? '#' : '-');
 		std::cout << "] ";
@@ -75,19 +78,21 @@ void	displayProgress(const size_t current, const size_t total)
 	}
 }
 
-
-void	log(std::string message, bool console)
+void	log(
+	std::string	message,
+	bool		console)
 {
-	std::chrono::system_clock::time_point	now_sys = std::chrono::system_clock::now();
-	std::time_t								now_c = std::chrono::system_clock::to_time_t(now_sys);
+	std::chrono::system_clock::time_point	now_sys = std::chrono::system_clock::now();					// Current system time
+	std::time_t								now_c = std::chrono::system_clock::to_time_t(now_sys);	// Convert to time_t
 	std::tm									local_tm;
 
 	localtime_r(&now_c, &local_tm);
 
-	std::chrono::duration<double>			time_span = now_sys.time_since_epoch();
-	long									ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_span).count() % 1000;
+	std::chrono::duration<double>			time_span = now_sys.time_since_epoch();														// Duration since epoch
+	long									ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_span).count() % 1000;	// Milliseconds part
 
 	std::ostringstream oss;
+	/* Format timestamp as [HH:MM:SS.ms] */
 	oss << "[" << std::setfill('0')
 		<< std::setw(2) << local_tm.tm_hour << ":"
 		<< std::setw(2) << local_tm.tm_min << ":"
@@ -98,63 +103,64 @@ void	log(std::string message, bool console)
 		std::lock_guard<std::mutex> lock(g_logMutex);
 		if (g_logFile.is_open())
 			g_logFile << oss.str();
-	{
-		std::lock_guard<std::mutex> cout_lock(g_coutMutex);
-		if (console)
-			std::cout << oss.str();
-	}
+		{
+			std::lock_guard<std::mutex> cout_lock(g_coutMutex);
+			if (console)
+				std::cout << oss.str();
+		}
 	}
 }
 
 /**
  * @brief Parse a simple .env file and return the value of the given key
+ *
+ * @param filepath The path to the .env file
+ * @param key The environment variable key to look for
+ * @return The value of the environment variable, or an empty string if not found
  */
-static std::string	getEnvVar(const std::string &filepath, const std::string &key)
+static std::string	getEnvVar(
+	const std::string	&filepath,
+	const std::string	&key)
 {
-	std::ifstream file(filepath);
+	std::ifstream	file(filepath); // Stream of the .env file
 	if (!file.is_open())
-		return std::string();
+		return std::string(); // Return empty string if file cannot be opened
 
 	std::string line;
 	while (std::getline(file, line))
 	{
-		// Ignore empty lines and comments
-		if (line.empty() || line[0] == '#')
+		if (line.empty() || line[0] == '#')	// Ignore empty lines and comments
 			continue;
 
-		std::size_t pos = line.find('=');
+		std::size_t	pos = line.find('='); // Find the '=' character
 		if (pos == std::string::npos)
 			continue;
 
-		std::string k = line.substr(0, pos);
-		std::string v = line.substr(pos + 1);
+		std::string	k = line.substr(0, pos);		// Key is the part before '='
+		std::string	v = line.substr(pos + 1);			// Value is the part after '='
 
-		// trim whitespaces from key and value if needed (optional)
 		if (k == key)
 			return v;
 	}
-	return std::string();
+	return (std::string());
 }
 
 t_paths	getPathsFromEnv(const std::string &env_path)
 {
-	t_paths paths;
-	paths.images = getEnvVar(env_path, "IMG_DIR");
-	paths.songs = getEnvVar(env_path, "SONGS_DIR");
-	paths.root = getEnvVar(env_path, "ROOT_DIR");
+	t_paths	paths;	// Structure to hold the paths
+	paths.images	= getEnvVar(env_path, "IMG_DIR");
+	paths.songs		= getEnvVar(env_path, "SONGS_DIR");
+	paths.root		= getEnvVar(env_path, "ROOT_DIR");
 	if (paths.root.empty())
-	{
-		// If ROOT_DIR is not set, use the directory of the .env file
-		paths.root = env_path.substr(0, env_path.find_last_of("/\\"));
-	}
+		paths.root = env_path.substr(0, env_path.find_last_of("/\\"));	// If ROOT_DIR is not set, use the directory of the .env file
 
 	if (paths.images.empty() || paths.songs.empty())
 	{
 		std::cerr << "Error: Missing IMG_DIR or SONGS_DIR in " << env_path << "\n";
-		exit(EXIT_FAILURE);
+		exit(EXIT_FAILURE);	// Exit if required paths are missing
 	}
 
-	return paths;
+	return (paths);
 }
 
 void	redirectStderrToFile(const std::string &filepath)
