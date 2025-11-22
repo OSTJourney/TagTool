@@ -171,3 +171,63 @@ void	redirectStderrToFile(const std::string &filepath)
 	else
 		std::cerr << "Failed to redirect stderr to " << filepath << "\n";
 }
+
+/**
+ * @brief Escape special characters in a JSON string
+ * @param s The input string to escape
+ * @return The escaped JSON string
+ */
+static std::string escapeJson(const std::string &s)
+{
+	std::ostringstream	o;
+	for (char c : s) {
+		switch (c) {
+			case '"': o << "\\\""; break;
+			case '\\': o << "\\\\"; break;
+			case '\b': o << "\\b"; break;
+			case '\f': o << "\\f"; break;
+			case '\n': o << "\\n"; break;
+			case '\r': o << "\\r"; break;
+			case '\t': o << "\\t"; break;
+			default: o << c;
+		}
+	}
+	return (o.str());
+}
+
+std::string multimapToJson(const std::multimap<std::string, std::string> &metadata)
+{
+	std::map<std::string, std::vector<std::vector<std::string>>>	grouped;	// Grouped key-value pairs
+
+	for (auto &kv : metadata)	// Sort TXXX and others frames into two categories
+	{
+		const std::string	&key = kv.first;	// Key from the metadata
+		const std::string	&value = kv.second;	// Value from the metadata
+
+		if (key == "TXXX")
+			grouped["TXXX"].push_back({key, value});
+		else
+			grouped["Other"].push_back({key, value});
+	}
+
+	std::ostringstream	json;
+	json << "{";
+
+	bool	firstCategory = true;
+	for (auto &cat : grouped) {
+		if (!firstCategory) json << ", ";
+		firstCategory = false;
+
+		json << "\"" << cat.first << "\": [";
+		bool firstPair = true;
+		for (auto &pair : cat.second) {
+			if (!firstPair) json << ", ";
+			firstPair = false;
+			json << "[\"" << escapeJson(pair[0]) << "\", \"" << escapeJson(pair[1]) << "\"]";
+		}
+		json << "]";
+	}
+
+	json << "}";
+	return (json.str());
+}

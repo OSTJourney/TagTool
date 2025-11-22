@@ -15,8 +15,8 @@
 
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Woverloaded-virtual"
-    #include <opencv2/opencv.hpp>
-    #include <opencv2/img_hash.hpp>
+	#include <opencv2/opencv.hpp>
+	#include <opencv2/img_hash.hpp>
 # pragma GCC diagnostic pop
 
 # include <taglib/attachedpictureframe.h>
@@ -105,6 +105,13 @@ t_paths	getPathsFromEnv(const std::string &env_path);
  * @param filepath Path to the file where stderr will be redirected
  */
 void	redirectStderrToFile(const std::string &filepath);
+
+/**
+ * @brief Convert a multimap of metadata to a JSON string
+ * @param metadata The multimap containing metadata key-value pairs
+ * @return A JSON formatted string representing the metadata
+ */
+std::string multimapToJson(const std::multimap<std::string, std::string> &metadata);
 
 /**
  * @brief Recursively find files with a given extension
