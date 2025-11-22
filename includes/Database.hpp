@@ -18,7 +18,7 @@
  * 	- tags:		Tags associated with the song.
  * 	- path:		File path to the song.
  */
-struct SongRecord {
+struct s_songRecord {
 	std::string			id;			// Unique identifier for the song (42id)
 	std::string			title;		// Song title
 	std::string			artist;		// Artist name
@@ -40,7 +40,7 @@ struct SongRecord {
  * 	- last_id:	ID of the last song added.
  * 	- comment:	Comment about the addition.
  */
-struct LogAddition {
+struct s_logAddition {
 	int			id;			// Unique identifier for the log entry
 	int			year;		// Year of the addition
 	int			month;		// Month of the addition
@@ -81,6 +81,13 @@ class Database {
 		void	close();
 
 		/**
+		 * @brief Check if a transaction is currently active.
+		 * @return true if in a transaction,
+		 * @return false otherwise.
+		 */
+		bool	inTransaction();
+
+		/**
 		 * @brief Initialize the database schema.
 		 * Reads the schema from @file `schema.sql` file and executes it.
 		 * Creates necessary tables if they do not exist:
@@ -98,12 +105,12 @@ class Database {
 		 * @return true on success,
 		 * @return false on failure.
 		 */
-		bool	upsertSong(const SongRecord &song, bool isNew);
+		bool	upsertSong(const s_songRecord &song, bool isNew);
 		/**
 		 * @brief Fetch all song records with a null cover field.
-		 * @return A vector of SongRecord objects with null cover.
+		 * @return A vector of s_songRecord objects with null cover.
 		 */
-		std::vector<SongRecord>	fetchSongsWithNullCover();
+		std::vector<s_songRecord>	fetchSongsWithNullCover();
 
 		/**
 		 * @brief Insert a log addition entry into the database.
@@ -111,7 +118,7 @@ class Database {
 		 * @return true on success,
 		 * @return false on failure.
 		 */
-		bool	insertLogAddition(const LogAddition &log);
+		bool	inserts_logAddition(const s_logAddition &log);
 
 		/**
 		 * @brief Begin a transaction.
@@ -134,15 +141,15 @@ class Database {
 		/**
 		 * @brief Get the Song By Id
 		 * @param id The ID of the song (string)
-		 * @return SongRecord 
+		 * @return s_songRecord 
 		 */
-		SongRecord		getSongById(const std::string	&id);
+		s_songRecord		getSongById(const std::string	&id);
 		/**
 		 * @brief Get the Song By Id
 		 * @param id The ID of the song (integer)
-		 * @return SongRecord 
+		 * @return s_songRecord 
 		 */
-		SongRecord		getSongById(const int			id);
+		s_songRecord		getSongById(const int			id);
 	private:
 		sqlite3			*_db = nullptr;				// SQLite database connection
 		std::string		_path;						// Path to the database file

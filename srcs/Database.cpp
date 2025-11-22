@@ -2,6 +2,8 @@
 
 #include <iostream>
 #include <fstream>
+#include <random>
+#include <thread>
 
 Database::Database(const std::string &filename)
 	: _path(filename) {}
@@ -15,6 +17,8 @@ bool Database::open()
 {
 	if (sqlite3_open(_path.c_str(), &_db) != SQLITE_OK)
 		return (false);
+
+	sqlite3_busy_timeout(_db, 5000); // Set busy timeout to 5000 ms
 
 	// Enable WAL mode for high concurrency
 	execute("PRAGMA journal_mode=WAL;");
@@ -31,9 +35,40 @@ bool Database::open()
 
 void Database::close()
 {
-	if (_db)
-		sqlite3_close(_db);
+	if (!_db)
+		return;
+	
+	if (inTransaction())
+		commitTransaction();
+
+	if (_stmtInsertSong)
+		sqlite3_finalize(_stmtInsertSong);
+	if (_stmtUpdateSong)
+		sqlite3_finalize(_stmtUpdateSong);
+	if (_stmtGetSongById)
+		sqlite3_finalize(_stmtGetSongById);
+	
+	sqlite3_close(_db);
+
+	_stmtInsertSong = nullptr;
+	_stmtUpdateSong = nullptr;
+	_stmtGetSongById = nullptr;
+
 	_db = nullptr;
+}
+
+bool Database::inTransaction()
+{
+	sqlite3_stmt *stmt = nullptr;
+	if (sqlite3_prepare_v2(_db, "PRAGMA in_transaction;", -1, &stmt, nullptr) != SQLITE_OK)
+		return (false);
+
+	int in = 0;
+	if (sqlite3_step(stmt) == SQLITE_ROW)
+		in = sqlite3_column_int(stmt, 0);
+
+	sqlite3_finalize(stmt);
+	return (in != 0);
 }
 
 bool Database::execute(const std::string &sql)
@@ -72,7 +107,7 @@ bool Database::initSchema()
 	return (execute(sql));
 }
 
-bool Database::upsertSong(const SongRecord &song, bool isNew)
+bool Database::upsertSong(const s_songRecord &song, bool isNew)
 {
 	sqlite3_stmt	*stmt	= nullptr;
 	int				idx		= 1;
@@ -126,13 +161,13 @@ bool Database::upsertSong(const SongRecord &song, bool isNew)
 	return (sqlite3_step(stmt) == SQLITE_DONE);
 }
 
-std::vector<SongRecord> Database::fetchSongsWithNullCover()
+std::vector<s_songRecord> Database::fetchSongsWithNullCover()
 {
-	std::vector<SongRecord> result;
+	std::vector<s_songRecord> result;
 	const std::string sql = "SELECT id,title,artist,album,cover,duration,tags,path FROM songs WHERE cover IS NULL;";
 	if (auto s = prepare(sql)) {
 		while (sqlite3_step(*s) == SQLITE_ROW) {
-			SongRecord rec;
+			s_songRecord rec;
 			rec.id		= reinterpret_cast<const char*>(sqlite3_column_text(*s, 0));
 			rec.title	= reinterpret_cast<const char*>(sqlite3_column_text(*s, 1));
 			rec.artist	= reinterpret_cast<const char*>(sqlite3_column_text(*s, 2));
@@ -149,7 +184,7 @@ std::vector<SongRecord> Database::fetchSongsWithNullCover()
 	return (result);
 }
 
-bool Database::insertLogAddition(const LogAddition &log)
+bool Database::inserts_logAddition(const s_logAddition &log)
 {
 	const std::string ins =
 		"INSERT INTO log_additions (year,month,day,first_id,last_id,comment) VALUES(?,?,?,?,?,?);";
@@ -174,7 +209,23 @@ bool Database::beginTransaction()
 
 bool Database::commitTransaction()
 {
-	return (execute("COMMIT;"));
+    static thread_local std::mt19937	rng(std::random_device{}());	// Random number generator for jitter
+    
+    for (int i = 0; i < 5; i++)
+    {
+        if (execute("COMMIT;"))
+            return (true);
+
+        // Exponential backoff with jitter
+        int	baseDelay = 50 * (1 << i);
+        std::uniform_int_distribution<int> dist(0, 30); // 0 to 30ms of jitter
+
+        int	delay = baseDelay + dist(rng);
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+    }
+
+    std::cerr << "DB COMMIT failed after retries\n";
+    return (false);
 }
 
 unsigned int Database::getLastSongId()
@@ -191,7 +242,7 @@ unsigned int Database::getLastSongId()
 	return (0);
 }
 
-SongRecord Database::getSongById(const std::string &id) {
+s_songRecord Database::getSongById(const std::string &id) {
 	if (!_db)
 		throw std::runtime_error("Database not opened");
 
@@ -216,7 +267,7 @@ SongRecord Database::getSongById(const std::string &id) {
 	if (rc != SQLITE_ROW)
 		throw std::runtime_error("Unexpected result in getSongById");
 
-	SongRecord	song;	// Temporary variable to hold the song record
+	s_songRecord	song;	// Temporary variable to hold the song record
 	song.id	  = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 0));
 	song.title   = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 1));
 	song.artist  = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 2));
@@ -234,6 +285,6 @@ SongRecord Database::getSongById(const std::string &id) {
 	return (song);
 }
 
-SongRecord Database::getSongById(const int id) {
+s_songRecord Database::getSongById(const int id) {
 	return getSongById(std::to_string(id));
 }
