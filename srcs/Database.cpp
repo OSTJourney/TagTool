@@ -72,57 +72,58 @@ bool Database::initSchema()
 	return (execute(sql));
 }
 
-bool Database::upsertSong(
-	const SongRecord	&song,
-	bool				&isNew)
+bool Database::upsertSong(const SongRecord &song, bool isNew)
 {
-	// Try update first
-	const std::string	upd =
-		"UPDATE songs SET title=?, artist=?, album=?, cover=?, duration=?, tags=?, path=? WHERE id=?;";
-	if (auto s = prepare(upd)) {
-		sqlite3_bind_text(*s, 1, song.title.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(*s, 2, song.artist.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(*s, 3, song.album.c_str(), -1, SQLITE_TRANSIENT);
-		if (song.cover)
-			sqlite3_bind_int(*s, 4, *song.cover);
-		else
-			sqlite3_bind_null(*s, 4);
+	sqlite3_stmt	*stmt	= nullptr;
+	int				idx		= 1;
 
-		sqlite3_bind_double(*s, 5, song.duration);
-		sqlite3_bind_text(*s, 6, song.tags.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(*s, 7, song.path.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(*s, 8, song.id.c_str(), -1, SQLITE_TRANSIENT);
-
-		if (sqlite3_step(*s) == SQLITE_DONE && sqlite3_changes(_db) > 0) {
-			sqlite3_finalize(*s);
-			isNew = false;
-			return (true);
+	if (isNew)
+	{
+		// Prepare insert statement once
+		if (!_stmtInsertSong)
+		{
+			const std::string ins =
+				"INSERT INTO songs (id,title,artist,album,cover,duration,tags,path) "
+				"VALUES (?,?,?,?,?,?,?,?);";
+			if (sqlite3_prepare_v2(_db, ins.c_str(), -1, &_stmtInsertSong, nullptr) != SQLITE_OK)
+				throw std::runtime_error("Failed to prepare insert statement");
 		}
-		sqlite3_finalize(*s);
-	} else
-		return (false);
-	// Insert
-	const std::string ins =
-		"INSERT INTO songs (id,title,artist,album,cover,duration,tags,path) VALUES(?,?,?,?,?,?,?,?);";
-	if (auto s2 = prepare(ins)) {
-		sqlite3_bind_text(*s2, 1, song.id.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(*s2, 2, song.title.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(*s2, 3, song.artist.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(*s2, 4, song.album.c_str(), -1, SQLITE_TRANSIENT);
-		if (song.cover)
-			sqlite3_bind_int(*s2, 5, *song.cover);
-		else
-			sqlite3_bind_null(*s2, 5);
-
-		sqlite3_bind_double(*s2, 6, song.duration);
-		sqlite3_bind_text(*s2, 7, song.tags.c_str(), -1, SQLITE_TRANSIENT);
-		sqlite3_bind_text(*s2, 8, song.path.c_str(), -1, SQLITE_TRANSIENT);
-		bool ok = sqlite3_step(*s2) == SQLITE_DONE; // Is insert successful
-		sqlite3_finalize(*s2);
-		isNew = true;
-		return (ok);
+		stmt = _stmtInsertSong;
 	}
-	return (false);
+	else
+	{
+		// Prepare update statement once
+		if (!_stmtUpdateSong)
+		{
+			const std::string upd =
+				"UPDATE songs SET title=?, artist=?, album=?, cover=?, duration=?, tags=?, path=? WHERE id=?;";
+			if (sqlite3_prepare_v2(_db, upd.c_str(), -1, &_stmtUpdateSong, nullptr) != SQLITE_OK)
+				throw std::runtime_error("Failed to prepare update statement");
+		}
+		stmt = _stmtUpdateSong;
+	}
+
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+
+	if (isNew)
+		sqlite3_bind_text(stmt, idx++, song.id.c_str(), -1, SQLITE_TRANSIENT);
+
+	sqlite3_bind_text(stmt, idx++, song.title.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, idx++, song.artist.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, idx++, song.album.c_str(), -1, SQLITE_TRANSIENT);
+
+	if (song.cover)
+		sqlite3_bind_int(stmt, idx++, *song.cover);
+	else sqlite3_bind_null(stmt, idx++);
+
+	sqlite3_bind_double(stmt, idx++, song.duration);
+	sqlite3_bind_text(stmt, idx++, song.tags.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, idx++, song.path.c_str(), -1, SQLITE_TRANSIENT);
+
+	if (!isNew) // For update, bind id at the end
+		sqlite3_bind_text(stmt, idx++, song.id.c_str(), -1, SQLITE_TRANSIENT);
+	return (sqlite3_step(stmt) == SQLITE_DONE);
 }
 
 std::vector<SongRecord> Database::fetchSongsWithNullCover()
@@ -216,7 +217,7 @@ SongRecord Database::getSongById(const std::string &id) {
 		throw std::runtime_error("Unexpected result in getSongById");
 
 	SongRecord	song;	// Temporary variable to hold the song record
-	song.id      = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 0));
+	song.id	  = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 0));
 	song.title   = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 1));
 	song.artist  = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 2));
 	song.album   = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 3));
@@ -227,8 +228,8 @@ SongRecord Database::getSongById(const std::string &id) {
 		song.cover = sqlite3_column_int(_stmtGetSongById, 4);
 
 	song.duration = sqlite3_column_double(_stmtGetSongById, 5);
-	song.tags     = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 6));
-	song.path     = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 7));
+	song.tags	 = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 6));
+	song.path	 = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 7));
 
 	return (song);
 }

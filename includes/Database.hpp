@@ -19,14 +19,14 @@
  * 	- path:		File path to the song.
  */
 struct SongRecord {
-	std::string id;				// Unique identifier for the song (42id)
-	std::string title;			// Song title
-	std::string artist;			// Artist name
-	std::string album;			// Album name
-	std::optional<int> cover;	// Optional cover image ID
-	double duration;			// Duration of the song in seconds
-	std::string tags;			// Tags associated with the song
-	std::string path;			// File path to the song
+	std::string			id;			// Unique identifier for the song (42id)
+	std::string			title;		// Song title
+	std::string			artist;		// Artist name
+	std::string			album;		// Album name
+	std::optional<int>	cover;		// Optional cover image ID
+	double				duration;	// Duration of the song in seconds
+	std::string			tags;		// Tags associated with the song
+	std::string			path;		// File path to the song
 };
 
 /**
@@ -41,12 +41,12 @@ struct SongRecord {
  * 	- comment:	Comment about the addition.
  */
 struct LogAddition {
-	int id;					// Unique identifier for the log entry
-	int year;				// Year of the addition
-	int month;				// Month of the addition
-	int day;				// Day of the addition
-	int first_id;			// ID of the first song added
-	int last_id;			// ID of the last song added
+	int			id;			// Unique identifier for the log entry
+	int			year;		// Year of the addition
+	int			month;		// Month of the addition
+	int			day;		// Day of the addition
+	int			first_id;	// ID of the first song added
+	int			last_id;	// ID of the last song added
 	std::string comment;	// Comment about the addition
 };
 
@@ -94,11 +94,11 @@ class Database {
 		/**
 		 * @brief Insert or update a song record in the database.
 		 * @param song The song record to insert or update.
-		 * @param isNew Output parameter set to true if a new record was inserted, false if updated.
+		 * @param isNew Indicates if the record is new, @true for insert, @false for update.
 		 * @return true on success,
 		 * @return false on failure.
 		 */
-		bool	upsertSong(const SongRecord &song, bool &isNew);
+		bool	upsertSong(const SongRecord &song, bool isNew);
 		/**
 		 * @brief Fetch all song records with a null cover field.
 		 * @return A vector of SongRecord objects with null cover.
@@ -146,6 +146,10 @@ class Database {
 	private:
 		sqlite3			*_db = nullptr;				// SQLite database connection
 		std::string		_path;						// Path to the database file
+
+		// Prepared statements
+		sqlite3_stmt*	_stmtInsertSong = nullptr;	// Prepared statement for inserting a song
+		sqlite3_stmt*	_stmtUpdateSong = nullptr;	// Prepared statement for updating a song
 		sqlite3_stmt*	_stmtGetSongById = nullptr; // Prepared statement for getting song by ID
 
 		/**
