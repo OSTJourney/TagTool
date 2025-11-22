@@ -14,11 +14,17 @@ Database::~Database()
 bool Database::open()
 {
 	if (sqlite3_open(_path.c_str(), &_db) != SQLITE_OK)
-		return false;
+		return (false);
 
-	// enable WAL journal
+	// Enable WAL mode for high concurrency
 	execute("PRAGMA journal_mode=WAL;");
 	execute("PRAGMA synchronous=NORMAL;");
+
+	// Enable large memory cache (256 MB)
+	execute("PRAGMA cache_size = -262144;");
+
+	// Avoid disk spills for max performance
+	execute("PRAGMA cache_spill = OFF;");
 
 	return (true);
 }
@@ -182,4 +188,51 @@ unsigned int Database::getLastSongId()
 		sqlite3_finalize(*s);
 	}
 	return (0);
+}
+
+SongRecord Database::getSongById(const std::string &id) {
+	if (!_db)
+		throw std::runtime_error("Database not opened");
+
+	if (_stmtGetSongById == nullptr) {
+		const char	*sql =
+			"SELECT id, title, artist, album, cover, duration, tags, path "
+			"FROM songs WHERE id = ? LIMIT 1;";
+
+		if (sqlite3_prepare_v2(_db, sql, -1, &_stmtGetSongById, nullptr) != SQLITE_OK)
+			throw std::runtime_error("Failed to prepare statement getSongById");
+	}
+
+	sqlite3_reset(_stmtGetSongById);
+	sqlite3_clear_bindings(_stmtGetSongById);
+
+	if (sqlite3_bind_text(_stmtGetSongById, 1, id.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK)
+		throw std::runtime_error("Failed to bind id (string) in getSongById");
+
+	int rc = sqlite3_step(_stmtGetSongById);
+	if (rc == SQLITE_DONE)
+		throw std::runtime_error("Song not found: " + id);
+	if (rc != SQLITE_ROW)
+		throw std::runtime_error("Unexpected result in getSongById");
+
+	SongRecord	song;	// Temporary variable to hold the song record
+	song.id      = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 0));
+	song.title   = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 1));
+	song.artist  = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 2));
+	song.album   = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 3));
+
+	if (sqlite3_column_type(_stmtGetSongById, 4) == SQLITE_NULL)
+		song.cover = std::nullopt;
+	else
+		song.cover = sqlite3_column_int(_stmtGetSongById, 4);
+
+	song.duration = sqlite3_column_double(_stmtGetSongById, 5);
+	song.tags     = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 6));
+	song.path     = reinterpret_cast<const char*>(sqlite3_column_text(_stmtGetSongById, 7));
+
+	return (song);
+}
+
+SongRecord Database::getSongById(const int id) {
+	return getSongById(std::to_string(id));
 }

@@ -74,11 +74,11 @@ class Database {
 		 * @return true on success,
 		 * @return false on failure.
 		 */
-		bool open();
+		bool	open();
 		/**
 		 * @brief Close the database connection.
 		 */
-		void close();
+		void	close();
 
 		/**
 		 * @brief Initialize the database schema.
@@ -89,7 +89,7 @@ class Database {
 		 * @return true on success,
 		 * @return false on failure.
 		 */
-		bool initSchema();
+		bool	initSchema();
 
 		/**
 		 * @brief Insert or update a song record in the database.
@@ -98,12 +98,12 @@ class Database {
 		 * @return true on success,
 		 * @return false on failure.
 		 */
-		bool upsertSong(const SongRecord &song, bool &isNew);
+		bool	upsertSong(const SongRecord &song, bool &isNew);
 		/**
 		 * @brief Fetch all song records with a null cover field.
 		 * @return A vector of SongRecord objects with null cover.
 		 */
-		std::vector<SongRecord> fetchSongsWithNullCover();
+		std::vector<SongRecord>	fetchSongsWithNullCover();
 
 		/**
 		 * @brief Insert a log addition entry into the database.
@@ -111,29 +111,42 @@ class Database {
 		 * @return true on success,
 		 * @return false on failure.
 		 */
-		bool insertLogAddition(const LogAddition &log);
+		bool	insertLogAddition(const LogAddition &log);
 
 		/**
 		 * @brief Begin a transaction.
 		 * @return true on success,
 		 * @return false on failure.
 		 */
-		bool beginTransaction();
+		bool	beginTransaction();
 		/**
 		 * @brief Commit the current transaction.
 		 * @return true on success,
 		 * @return false on failure.
 		 */
-		bool commitTransaction();
+		bool	commitTransaction();
 
 		/**
 		 * @brief Get the last inserted song ID.
 		 * @return The last inserted song ID.
 		 */
-		unsigned int getLastSongId();
+		unsigned int	getLastSongId();
+		/**
+		 * @brief Get the Song By Id
+		 * @param id The ID of the song (string)
+		 * @return SongRecord 
+		 */
+		SongRecord		getSongById(const std::string	&id);
+		/**
+		 * @brief Get the Song By Id
+		 * @param id The ID of the song (integer)
+		 * @return SongRecord 
+		 */
+		SongRecord		getSongById(const int			id);
 	private:
-		sqlite3		*_db = nullptr;	// SQLite database connection
-		std::string	_path;			// Path to the database file
+		sqlite3			*_db = nullptr;				// SQLite database connection
+		std::string		_path;						// Path to the database file
+		sqlite3_stmt*	_stmtGetSongById = nullptr; // Prepared statement for getting song by ID
 
 		/**
 		 * @brief Execute a SQL statement.
