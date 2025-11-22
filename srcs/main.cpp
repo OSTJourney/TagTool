@@ -7,9 +7,9 @@ std::ofstream							g_logFile;
 /**
  * @brief Process images in the specified directory to generate perceptual hashes.
  * @param img_dir The directory containing images.
- * @return A vector of cv::Mat objects representing the perceptual hashes of the images.
+ * @return A vector of s_imageHash structs containing the filenames and their hashes.
  */
-static std::vector<cv::Mat>	processImages(const std::string &img_dir)
+static std::vector<s_imageHash>	processImages(const std::string &img_dir)
 {
 	std::vector<cv::String>	imgFiles = getFiles<cv::String>(img_dir, ".jpg"); // vector of image file paths
 	size_t					total = imgFiles.size(); // total number of images
@@ -23,7 +23,7 @@ static std::vector<cv::Mat>	processImages(const std::string &img_dir)
 	log("Generating perceptual hashes for " + std::to_string(total) + " images...", true);
 	g_startTime = std::chrono::steady_clock::now();
 
-	std::vector<cv::Mat>	hashes;	// vector to store perceptual hashes
+	std::vector<s_imageHash>	hashes;
 	cv::Mat					img, hash;
 	auto					hasher = cv::img_hash::PHash::create();	// perceptual hash algorithm
 
@@ -36,7 +36,7 @@ static std::vector<cv::Mat>	processImages(const std::string &img_dir)
 			continue;
 		}
 		hasher->compute(img, hash);
-		hashes.push_back(hash.clone());
+		hashes.push_back({f, hash.clone()});
 		displayProgress(g_progressCount++, total);
 	}
 	displayProgress(total, total);
@@ -66,7 +66,7 @@ int	main(int argc, char **argv)
 	t_paths	paths = getPathsFromEnv(".env");
 	redirectStderrToFile("errors.log");
 
-	std::vector<cv::Mat>	hashes = processImages(paths.images);
+	std::vector<s_imageHash>	hashes = processImages(paths.images);
 	processSongs(paths, hashes);
 
 	if (g_logFile.is_open())

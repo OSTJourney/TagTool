@@ -53,6 +53,17 @@ typedef struct	s_paths
 }	t_paths;
 
 /**
+ * @brief Structure to hold image filename and its perceptual hash
+ * @details Contains:
+ * 	- filename:	The name of the image file
+ * 	- hash:		The perceptual hash of the image
+ */
+struct s_imageHash {
+	std::string	filename;	// image file name
+	cv::Mat		hash;		// perceptual hash
+};
+
+/**
  * @brief Structure to hold processing statistics
  * @details Contains:
  * 	- newFiles:		number of new files processed
@@ -170,6 +181,6 @@ std::vector<StringType> getFiles(const std::string &path, const std::string &ext
  * @param paths The paths structure containing songs directory
  * @param hashes Vector to store computed hashes
  */
-void	processSongs(const t_paths &paths, std::vector<cv::Mat> &hashes);
+void	processSongs(const t_paths &paths, std::vector<s_imageHash> &hashes);
 
 #endif
