@@ -3,6 +3,7 @@
 
 # include <atomic>
 # include <chrono>
+#include <cstddef>
 # include <cstdlib>
 # include <fcntl.h>
 # include <filesystem>
@@ -66,17 +67,19 @@ struct s_imageHash {
 /**
  * @brief Structure to hold processing statistics
  * @details Contains:
- * 	- newFiles:		number of new files processed
- * 	- updatedFiles:	number of files updated
- * 	- newImages:	number of new images added
- * 	- errors:		number of errors encountered
+ * 	- newFiles:			number of new files processed
+ * 	- updatedFiles:		number of files updated
+ * 	- recoveredFiles:	number of files recovered
+ * 	- newImages:		number of new images added
+ * 	- errors:			number of errors encountered
  */
 typedef struct	s_stats
 {
-	size_t	newFiles;		// number of new files processed
-	size_t	updatedFiles;	// number of files updated
-	size_t	newImages;		// number of new images added
-	size_t	errors;			// number of errors encountered
+	size_t	newFiles;		// number of new files that didn't had an id and weren't found in the DB
+	size_t	updatedFiles;	// number of files found in the DB but had an updates
+	size_t	recoveredFiles;	// number of files that have an id but were not found in the DB
+	size_t	newImages;		// number of new covers extracted
+	size_t	errors;			// number of errors encountered completly blocked a file processing
 }	t_stats;
 
 extern std::mutex			g_statsMutex;	// mutex for statistics

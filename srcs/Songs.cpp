@@ -1,6 +1,8 @@
+#include <cmath>
 #include <cstddef>
 #include <fcntl.h>
 #include <iostream>
+#include <mutex>
 #include <thread>
 
 #include "../includes/Utils.hpp"
@@ -27,7 +29,7 @@ struct s_partialFile
 static std::atomic<size_t>	g_NumDbEntries(0);	// Global atomic counter for number of DB entries
 static std::mutex			g_numDbEntriesMutex;	// Mutex for protecting g_NumDbEntries
 std::mutex					g_statsMutex;			// mutex for statistics
-t_stats						g_stats = {0, 0, 0, 0};		// global statistics
+t_stats						g_stats = {0, 0, 0, 0, 0};		// global statistics
 static std::mutex			g_imageMutex;			// Mutex for protecting image processing
 
 static const int			DB_COMMIT_INTERVAL = 200;	// Number of songs to process before committing to DB
@@ -132,14 +134,14 @@ static bool	extractID3v2Metadata(
  * and saves the image in JPEG format with high quality if unique.
  * 
  * @param paths Struct containing output paths (e.g., image directory).
- * @param hashes Vector storing perceptual hashes of previously processed images.
+ * @param hashes Vector to store perceptual names and hashes of processed images.
  * @param hasher OpenCV perceptual hash algorithm instance.
  * @param tag Pointer to the ID3v2 tag of the song file.
  * @return The unique ID assigned to the image, or 0 if no image or duplicate found.
  */
 static size_t	processSongImage(
 	const t_paths					&paths,
-	std::vector<s_imageHash>			&hashes,
+	std::vector<s_imageHash>		&hashes,
 	cv::Ptr<cv::img_hash::PHash>	&hasher,
 	TagLib::ID3v2::Tag				*tag)
 {
@@ -220,7 +222,124 @@ static size_t	processSongImage(
 	return (id);
 }
 
+/**
+ * @brief Update a song record with data from a partial file.
+ * @param song Reference to the song record to update.
+ * @param partialFile Reference to the partial file containing new data.
+ * @return true if any changes were made, false otherwise.
+ */
+static bool	updates_songRecord(
+	s_songRecord	&song,
+	s_partialFile	&partialFile)
+{
+	std::string	jsonMeta	= multimapToJson(partialFile.metadata);	// Convert metadata to JSON string
+	bool		hasChanges	= false;	// Flag to indicate if any changes were made
 
+	// Generic updater for any assignable type
+	auto updateField = [&](auto &field, const auto &value) {
+		if (field != value) {
+			field = value;
+			hasChanges = true;
+		}
+	};
+
+	// Specific updater for metadata strings
+	auto updateStringFromMeta = [&](std::string &field, const std::string &key) {
+		auto range = partialFile.metadata.equal_range(key);
+		if (range.first != range.second) {
+			const std::string &newValue = range.first->second;
+			updateField(field, newValue);
+		}
+	};
+
+	// Id
+	updateField(song.id, std::to_string(partialFile.id));
+
+	// Cover
+	{
+		std::optional<size_t> newCover = (partialFile.imageId != 0)
+			? std::optional<size_t>{partialFile.imageId}
+			: std::nullopt;
+
+		updateField(song.cover, newCover);
+	}
+
+	// Duration, Path, JSON Tags
+	updateField(song.duration, partialFile.duration);
+	updateField(song.path, partialFile.path);
+	updateField(song.tags, jsonMeta);
+
+	// Metadata fields
+	updateStringFromMeta(song.title, "TIT2");
+	updateStringFromMeta(song.artist, "TPE1");
+	updateStringFromMeta(song.album, "TALB");
+
+	return (hasChanges);
+}
+
+/**
+ * @brief Save or update a song record in the database.
+ * 
+ * This function saves a new song record or updates an existing one
+ * in the database based on the provided metadata. It constructs a
+ * s_songRecord from the metadata and uses the Database instance to
+ * insert or update the record.
+ * 
+ * @param db Reference to the Database instance.
+ * @param partialFile Reference to the s_partialFile containing song metadata.
+ * @param isNew Flag indicating whether to insert a new record (true) or update an existing one (false).
+ * @return true if the operation was successful, false otherwise.
+ */
+static bool saveSong(
+	Database		&db,
+	s_partialFile   &partialFile,
+	bool			isNew)
+{
+	s_songRecord	song;  // Song record to be saved or updated
+	bool			isRecovered = false;
+	bool			result = false;
+
+	// Only try fetching if caller says it's an update
+	if (!isNew) {
+		try {
+			song = db.getSongById(std::to_string(partialFile.id));
+		}
+		catch (const Database::RecordNotFound &) {
+			isNew = true;
+			isRecovered = true;
+		}
+		catch (const std::exception &e) {
+			std::cerr << "Error fetching song with id " << partialFile.id << ": " << e.what() << "\n";
+			return (false);
+		}
+	}
+
+	if (!updates_songRecord(song, partialFile))
+		return (false);
+
+	try {
+		result = db.upsertSong(song, isNew);
+	} catch (const std::exception &e) {
+		std::cerr << "Error saving song with id " << song.id << ": " << e.what() << "\n";
+		return (false);
+	}
+
+	if (!result)
+		return (false);
+
+	// Update stats based on final resolved state
+	{
+		std::lock_guard<std::mutex> lock(g_statsMutex);
+		if (isRecovered)
+			g_stats.recoveredFiles++;
+		else if (isNew)
+			g_stats.newFiles++;
+		else
+			g_stats.updatedFiles++;
+	}
+
+	return (true);
+}
 
 /**
  * @brief Thread function to process a range of song files.
@@ -256,7 +375,7 @@ static void	songsThread(
 
 	i = start;
 	c = 0;
-	db.beginTransaction();
+	//db.beginTransaction();
 	while (i < end)
 	{
 		const std::string	&path = song_files[i];	// Current song file path
@@ -292,6 +411,8 @@ static void	songsThread(
 				pfile.duration	= duration;
 				pfile.path		= path;
 				pfile.metadata	= metadata;
+
+				c += static_cast<int>(saveSong(db, pfile, !has42id));
 			}
 		} catch (const std::exception &e) {
 			std::cerr << "Exception while processing file: `" << path << ": " << e.what() << "`\n";
@@ -302,8 +423,8 @@ static void	songsThread(
 		}
 
 		if (c >= DB_COMMIT_INTERVAL) {
-			db.commitTransaction();
-			db.beginTransaction();
+			//db.commitTransaction();
+			//db.beginTransaction();
 			c = 0;
 		}
 		displayProgress(g_progressCount++, song_files.size());

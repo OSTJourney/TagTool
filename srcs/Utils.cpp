@@ -60,7 +60,7 @@ void	displayProgress(
 		
 		std::cout	<< "\x1b[u\x1b[2K";	// Restore cursor position and clear line
 		/* Print progress bar with the format
-		 *				current/total remMin:remSec [##########----------] XX.X % | new: N, updated: N, images: N, errors: N */
+		 *				current/total remMin:remSec [##########----------] XX.X % | new: N, updated: N, recovered: N, images: N, errors: N */
 		std::cout <<	current << "/" << total << " " << remMin << ":" << (remSec < 10 ? "0" : "") << remSec << " [";
 		for (int i = 0; i < PROGRESS_BAR_WIDTH; ++i)
 			std::cout << (i <= pos ? '#' : '-');
@@ -69,9 +69,10 @@ void	displayProgress(
 			std::lock_guard<std::mutex> stats_lock(g_statsMutex);
 			std::cout << std::fixed << std::setprecision(1)
 					  << percent << " % | new: " << g_stats.newFiles
-					  << ", updated: "  << g_stats.updatedFiles
-					  << ", images: "   << g_stats.newImages
-					  << ", errors: "   << g_stats.errors;
+					  << ", updated: "		<< g_stats.updatedFiles
+					  << ", recovered: "	<< g_stats.recoveredFiles
+					  << ", images: "		<< g_stats.newImages
+					  << ", errors: "		<< g_stats.errors;
 		}
 
 		std::cout.flush();

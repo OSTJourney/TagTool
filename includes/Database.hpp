@@ -150,6 +150,18 @@ class Database {
 		 * @return s_songRecord 
 		 */
 		s_songRecord		getSongById(const int			id);
+
+		/**
+		 * @brief Exception thrown when a record is not found in the database.
+		 */
+		class RecordNotFound : public std::exception
+		{
+		public:
+			const char *what() const noexcept override
+			{
+				return ("record not found");
+			}
+		};
 	private:
 		sqlite3			*_db = nullptr;				// SQLite database connection
 		std::string		_path;						// Path to the database file

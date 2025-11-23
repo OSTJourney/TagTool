@@ -18,5 +18,3 @@ CREATE TABLE IF NOT EXISTS log_additions (
 	last_id		INTEGER,
 	comment		TEXT
 );
-
-CREATE INDEX idx_songs_id ON songs(id);

@@ -1,5 +1,6 @@
 #include "../includes/Database.hpp"
 
+#include <cmath>
 #include <iostream>
 #include <fstream>
 #include <random>
@@ -107,8 +108,11 @@ bool Database::initSchema()
 	return (execute(sql));
 }
 
+#include "../includes/Utils.hpp"
+
 bool Database::upsertSong(const s_songRecord &song, bool isNew)
 {
+	log("Upserting song ID " + song.id + " (" + (isNew ? "new" : "update") + ")", false);
 	sqlite3_stmt	*stmt	= nullptr;
 	int				idx		= 1;
 
@@ -158,7 +162,15 @@ bool Database::upsertSong(const s_songRecord &song, bool isNew)
 
 	if (!isNew) // For update, bind id at the end
 		sqlite3_bind_text(stmt, idx++, song.id.c_str(), -1, SQLITE_TRANSIENT);
-	return (sqlite3_step(stmt) == SQLITE_DONE);
+
+	int	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_DONE) {
+		std::cerr << "sqlite3_step() failed for id=" << song.id
+				  << " rc=" << rc << " err=" << sqlite3_errmsg(_db) << "\n";
+		return (false);
+	}
+	return (true);
+
 }
 
 std::vector<s_songRecord> Database::fetchSongsWithNullCover()
@@ -209,23 +221,23 @@ bool Database::beginTransaction()
 
 bool Database::commitTransaction()
 {
-    static thread_local std::mt19937	rng(std::random_device{}());	// Random number generator for jitter
-    
-    for (int i = 0; i < 5; i++)
-    {
-        if (execute("COMMIT;"))
-            return (true);
+	static thread_local std::mt19937	rng(std::random_device{}());	// Random number generator for jitter
+	
+	for (int i = 0; i < 5; i++)
+	{
+		if (execute("COMMIT;"))
+			return (true);
 
-        // Exponential backoff with jitter
-        int	baseDelay = 50 * (1 << i);
-        std::uniform_int_distribution<int> dist(0, 30); // 0 to 30ms of jitter
+		// Exponential backoff with jitter
+		int	baseDelay = 50 * (1 << i);
+		std::uniform_int_distribution<int> dist(0, 30); // 0 to 30ms of jitter
 
-        int	delay = baseDelay + dist(rng);
-        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-    }
+		int	delay = baseDelay + dist(rng);
+		std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+	}
 
-    std::cerr << "DB COMMIT failed after retries\n";
-    return (false);
+	std::cerr << "DB COMMIT failed after retries\n";
+	return (false);
 }
 
 unsigned int Database::getLastSongId()
@@ -263,7 +275,7 @@ s_songRecord Database::getSongById(const std::string &id) {
 
 	int rc = sqlite3_step(_stmtGetSongById);
 	if (rc == SQLITE_DONE)
-		throw std::runtime_error("Song not found: " + id);
+		throw RecordNotFound();
 	if (rc != SQLITE_ROW)
 		throw std::runtime_error("Unexpected result in getSongById");
 
