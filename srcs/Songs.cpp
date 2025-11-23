@@ -291,13 +291,13 @@ static bool	updates_songRecord(
  * @return true if the operation was successful, false otherwise.
  */
 static bool saveSong(
-	Database		&db,
-	s_partialFile   &partialFile,
-	bool			isNew)
+	Database					&db,
+	std::vector<s_songRecord>	&threadBuffer,
+	s_partialFile				&partialFile,
+	bool						isNew)
 {
 	s_songRecord	song;  // Song record to be saved or updated
 	bool			isRecovered = false;
-	bool			result = false;
 
 	// Only try fetching if caller says it's an update
 	if (!isNew) {
@@ -317,15 +317,7 @@ static bool saveSong(
 	if (!updates_songRecord(song, partialFile))
 		return (false);
 
-	try {
-		result = db.upsertSong(song, isNew);
-	} catch (const std::exception &e) {
-		std::cerr << "Error saving song with id " << song.id << ": " << e.what() << "\n";
-		return (false);
-	}
-
-	if (!result)
-		return (false);
+	threadBuffer.push_back(std::move(song));
 
 	// Update stats based on final resolved state
 	{
@@ -355,11 +347,12 @@ static void	songsThread(
 	size_t							start,
 	size_t							end,
 	const t_paths					&paths,
-	std::vector<s_imageHash>			&hashes)
+	std::vector<s_imageHash>		&hashes)
 {
-	size_t		i;										// Loop index
-	int			c;										// DB Commit index
-	Database	db(paths.root + "/songs.db");	// SQLite database instance
+	size_t						i;										// Loop index
+	int							c;										// DB Commit index
+	Database					db(paths.root + "/songs.db");	// SQLite database instance
+	std::vector<s_songRecord>	threadBuffer;							// Buffer for batch DB operations
 
 	if (start >= end || end > song_files.size()) {
 		std::cerr << "Invalid range [" << start << ", " << end << ")\n";
@@ -412,7 +405,7 @@ static void	songsThread(
 				pfile.path		= path;
 				pfile.metadata	= metadata;
 
-				c += static_cast<int>(saveSong(db, pfile, !has42id));
+				c += static_cast<int>(saveSong(db, threadBuffer, pfile, !has42id));
 			}
 		} catch (const std::exception &e) {
 			std::cerr << "Exception while processing file: `" << path << ": " << e.what() << "`\n";
@@ -423,8 +416,27 @@ static void	songsThread(
 		}
 
 		if (c >= DB_COMMIT_INTERVAL) {
-			//db.commitTransaction();
-			//db.beginTransaction();
+			db.beginTransaction();
+			for (const auto &song : threadBuffer)
+			{
+				try {
+					bool	result = db.upsertSong(song, false);	// Upsert song record
+					if (!result)
+					{
+						std::cerr << "Failed to upsert song ID " << song.id << "\n";
+						std::lock_guard<std::mutex> lock(g_statsMutex);
+						g_stats.errors++;
+					}
+				} catch (const std::exception &e) {
+					std::cerr << "Exception while upserting song ID " << song.id << ": " << e.what() << "\n";
+					std::lock_guard<std::mutex> lock(g_statsMutex);
+					g_stats.errors++;
+				}
+				
+				
+			}
+			db.commitTransaction();
+			threadBuffer.clear();
 			c = 0;
 		}
 		displayProgress(g_progressCount++, song_files.size());
@@ -459,7 +471,9 @@ void	processSongs(
 	size_t							total = songFiles.size();						// Total number of song files
 
 	log("Found " + std::to_string(total) + " songs in " + paths.songs + ".", true);
-	log("Db entries: " + std::to_string(g_NumDbEntries.load()) + ", diff: " + std::to_string(total - g_NumDbEntries.load()), true);
+	size_t	diff = (total > g_NumDbEntries.load()) ? (total - g_NumDbEntries.load()) : 0;
+	log("Db entries: " + std::to_string(g_NumDbEntries.load()) + ", files to process: " + std::to_string(total) + " (new: " + std::to_string(diff) + ")", true);
+
 	g_startTime = std::chrono::steady_clock::now();
 
 	unsigned int	Nthreads = std::thread::hardware_concurrency();	// Get number of available hardware threads

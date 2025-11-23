@@ -1,6 +1,5 @@
 #include "../includes/Database.hpp"
 
-#include <cmath>
 #include <iostream>
 #include <fstream>
 #include <random>
@@ -108,11 +107,8 @@ bool Database::initSchema()
 	return (execute(sql));
 }
 
-#include "../includes/Utils.hpp"
-
 bool Database::upsertSong(const s_songRecord &song, bool isNew)
 {
-	log("Upserting song ID " + song.id + " (" + (isNew ? "new" : "update") + ")", false);
 	sqlite3_stmt	*stmt	= nullptr;
 	int				idx		= 1;
 
