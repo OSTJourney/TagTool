@@ -6,148 +6,51 @@
 #include <sqlite3.h>
 #include <optional>
 
-/**
- * @brief Structure representing a song record in the database.
- * @details Contains:
- * 	- id:		Unique identifier for the song (42id).
- * 	- title:	Song title.
- * 	- artist:	Artist name.
- * 	- album:	Album name.
- * 	- cover:	Optional cover image ID.
- * 	- duration:	Duration of the song in seconds.
- * 	- tags:		Tags associated with the song.
- * 	- path:		File path to the song.
- */
 struct SongRecord {
-	std::string id;				// Unique identifier for the song (42id)
-	std::string title;			// Song title
-	std::string artist;			// Artist name
-	std::string album;			// Album name
-	std::optional<int> cover;	// Optional cover image ID
-	double duration;			// Duration of the song in seconds
-	std::string tags;			// Tags associated with the song
-	std::string path;			// File path to the song
+	std::string id;
+	std::string title;
+	std::string artist;
+	std::string album;
+	std::optional<int> cover;
+	double duration;
+	std::string tags;
+	std::string path;
 };
 
-/**
- * @brief Structure representing a log entry for additions to the database.
- * @details Contains:
- * 	- id:		Unique identifier for the log entry.
- * 	- year:		Year of the addition.
- * 	- month:	Month of the addition.
- * 	- day:		Day of the addition.
- * 	- first_id:	ID of the first song added.
- * 	- last_id:	ID of the last song added.
- * 	- comment:	Comment about the addition.
- */
 struct LogAddition {
-	int id;					// Unique identifier for the log entry
-	int year;				// Year of the addition
-	int month;				// Month of the addition
-	int day;				// Day of the addition
-	int first_id;			// ID of the first song added
-	int last_id;			// ID of the last song added
-	std::string comment;	// Comment about the addition
+	int id;
+	int year;
+	int month;
+	int day;
+	int first_id;
+	int last_id;
+	std::string comment;
 };
 
-/**
- * @brief Class for managing the SQLite database.
- *
- * This class provides methods to open, close, and interact with the database,
- * including inserting and fetching song records and log additions.
- */
 class Database {
 	public:
-		/**
-		 * @brief Construct a new Database object.
-		 * @param filename The path to the SQLite database file.
-		 */
 		explicit Database(const std::string &filename);
-
-		/**
-		 * @brief Destroy the Database object and close the database connection.
-		 */
 		~Database();
 
-		/**
-		 * @brief Open the database connection.
-		 * @return true on success,
-		 * @return false on failure.
-		 */
 		bool open();
-		/**
-		 * @brief Close the database connection.
-		 */
 		void close();
 
-		/**
-		 * @brief Initialize the database schema.
-		 * Reads the schema from @file `schema.sql` file and executes it.
-		 * Creates necessary tables if they do not exist:
-		 * 	- `songs`
-		 * 	- `log_additions`
-		 * @return true on success,
-		 * @return false on failure.
-		 */
 		bool initSchema();
 
-		/**
-		 * @brief Insert or update a song record in the database.
-		 * @param song The song record to insert or update.
-		 * @param isNew Output parameter set to true if a new record was inserted, false if updated.
-		 * @return true on success,
-		 * @return false on failure.
-		 */
 		bool upsertSong(const SongRecord &song, bool &isNew);
-		/**
-		 * @brief Fetch all song records with a null cover field.
-		 * @return A vector of SongRecord objects with null cover.
-		 */
 		std::vector<SongRecord> fetchSongsWithNullCover();
 
-		/**
-		 * @brief Insert a log addition entry into the database.
-		 * @param log The log addition entry to insert.
-		 * @return true on success,
-		 * @return false on failure.
-		 */
 		bool insertLogAddition(const LogAddition &log);
 
-		/**
-		 * @brief Begin a transaction.
-		 * @return true on success,
-		 * @return false on failure.
-		 */
 		bool beginTransaction();
-		/**
-		 * @brief Commit the current transaction.
-		 * @return true on success,
-		 * @return false on failure.
-		 */
 		bool commitTransaction();
 
-		/**
-		 * @brief Get the last inserted song ID.
-		 * @return The last inserted song ID.
-		 */
 		unsigned int getLastSongId();
 	private:
-		sqlite3		*_db = nullptr;	// SQLite database connection
-		std::string	_path;			// Path to the database file
+		sqlite3 *_db = nullptr;
+		std::string _path;
 
-		/**
-		 * @brief Execute a SQL statement.
-		 * @param sql The SQL statement to execute.
-		 * @return true on success,
-		 * @return false on failure.
-		 */
 		bool execute(const std::string &sql);
-		/**
-		 * @brief Prepare a SQL statement.
-		 * @param sql The SQL statement to prepare.
-		 * @return	An optional containing the prepared statement on success,
-		 * 			or std::nullopt on failure.
-		 */
 		std::optional<sqlite3_stmt*> prepare(const std::string &sql);
 };
 
