@@ -58,7 +58,7 @@ void	displayProgress(
 
 		std::lock_guard<std::mutex> lock(g_coutMutex);
 		
-		std::cout	<< "\x1b[u\x1b[2K";	// Restore cursor position and clear line
+		std::cout	<< "\r";	// Carriage return to overwrite the current line
 		/* Print progress bar with the format
 		 *				current/total remMin:remSec [##########----------] XX.X % | new: N, updated: N, recovered: N, images: N, errors: N */
 		std::cout <<	current << "/" << total << " " << remMin << ":" << (remSec < 10 ? "0" : "") << remSec << " [";

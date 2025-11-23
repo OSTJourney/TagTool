@@ -317,6 +317,7 @@ static bool saveSong(
 	if (!updates_songRecord(song, partialFile))
 		return (false);
 
+	song.isNew = isNew;
 	threadBuffer.push_back(std::move(song));
 
 	// Update stats based on final resolved state
@@ -331,6 +332,31 @@ static bool saveSong(
 	}
 
 	return (true);
+}
+
+static void	batchDb(
+	Database					&db,
+	std::vector<s_songRecord>	&threadBuffer)
+{
+	db.beginTransaction();
+	for (const auto &song : threadBuffer)
+	{
+		try {
+			bool	result = db.upsertSong(song);	// Upsert song record
+			if (!result)
+			{
+				std::cerr << "Failed to upsert song ID " << song.id << "\n";
+				std::lock_guard<std::mutex> lock(g_statsMutex);
+				g_stats.errors++;
+			}
+		} catch (const std::exception &e) {
+			std::cerr << "Exception while upserting song ID " << song.id << ": " << e.what() << "\n";
+			std::lock_guard<std::mutex> lock(g_statsMutex);
+			g_stats.errors++;
+		}	
+	}
+	db.commitTransaction();
+	threadBuffer.clear();
 }
 
 /**
@@ -368,7 +394,6 @@ static void	songsThread(
 
 	i = start;
 	c = 0;
-	//db.beginTransaction();
 	while (i < end)
 	{
 		const std::string	&path = song_files[i];	// Current song file path
@@ -402,7 +427,7 @@ static void	songsThread(
 				}
 				pfile.imageId	= processSongImage(paths, hashes, hasher, tag);
 				pfile.duration	= duration;
-				pfile.path		= path;
+				pfile.path		= path.substr(paths.songs.length() + 1);	// Relative path
 				pfile.metadata	= metadata;
 
 				c += static_cast<int>(saveSong(db, threadBuffer, pfile, !has42id));
@@ -416,32 +441,13 @@ static void	songsThread(
 		}
 
 		if (c >= DB_COMMIT_INTERVAL) {
-			db.beginTransaction();
-			for (const auto &song : threadBuffer)
-			{
-				try {
-					bool	result = db.upsertSong(song, false);	// Upsert song record
-					if (!result)
-					{
-						std::cerr << "Failed to upsert song ID " << song.id << "\n";
-						std::lock_guard<std::mutex> lock(g_statsMutex);
-						g_stats.errors++;
-					}
-				} catch (const std::exception &e) {
-					std::cerr << "Exception while upserting song ID " << song.id << ": " << e.what() << "\n";
-					std::lock_guard<std::mutex> lock(g_statsMutex);
-					g_stats.errors++;
-				}
-				
-				
-			}
-			db.commitTransaction();
-			threadBuffer.clear();
+			batchDb(db, threadBuffer);
 			c = 0;
 		}
 		displayProgress(g_progressCount++, song_files.size());
 		++i;
 	}
+	batchDb(db, threadBuffer);
 	db.close();
 }
 

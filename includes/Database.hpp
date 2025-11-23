@@ -17,6 +17,7 @@
  * 	- duration:	Duration of the song in seconds.
  * 	- tags:		Tags associated with the song.
  * 	- path:		File path to the song.
+ * 	- isNew:	Flag indicating if the record is new.
  */
 struct s_songRecord {
 	std::string			id;			// Unique identifier for the song (42id)
@@ -27,6 +28,7 @@ struct s_songRecord {
 	double				duration;	// Duration of the song in seconds
 	std::string			tags;		// Tags associated with the song
 	std::string			path;		// File path to the song
+	bool				isNew;		// Flag indicating if the record is new
 };
 
 /**
@@ -105,7 +107,7 @@ class Database {
 		 * @return true on success,
 		 * @return false on failure.
 		 */
-		bool	upsertSong(const s_songRecord &song, bool isNew);
+		bool	upsertSong(const s_songRecord &song);
 		/**
 		 * @brief Fetch all song records with a null cover field.
 		 * @return A vector of s_songRecord objects with null cover.

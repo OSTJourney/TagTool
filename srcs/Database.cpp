@@ -107,12 +107,11 @@ bool Database::initSchema()
 	return (execute(sql));
 }
 
-bool Database::upsertSong(const s_songRecord &song, bool isNew)
+bool Database::upsertSong(const s_songRecord &song)
 {
 	sqlite3_stmt	*stmt	= nullptr;
 	int				idx		= 1;
-
-	if (isNew)
+	if (song.isNew)
 	{
 		// Prepare insert statement once
 		if (!_stmtInsertSong)
@@ -141,7 +140,7 @@ bool Database::upsertSong(const s_songRecord &song, bool isNew)
 	sqlite3_reset(stmt);
 	sqlite3_clear_bindings(stmt);
 
-	if (isNew)
+	if (song.isNew)
 		sqlite3_bind_text(stmt, idx++, song.id.c_str(), -1, SQLITE_TRANSIENT);
 
 	sqlite3_bind_text(stmt, idx++, song.title.c_str(), -1, SQLITE_TRANSIENT);
@@ -156,7 +155,7 @@ bool Database::upsertSong(const s_songRecord &song, bool isNew)
 	sqlite3_bind_text(stmt, idx++, song.tags.c_str(), -1, SQLITE_TRANSIENT);
 	sqlite3_bind_text(stmt, idx++, song.path.c_str(), -1, SQLITE_TRANSIENT);
 
-	if (!isNew) // For update, bind id at the end
+	if (!song.isNew) // For update, bind id at the end
 		sqlite3_bind_text(stmt, idx++, song.id.c_str(), -1, SQLITE_TRANSIENT);
 
 	int	rc = sqlite3_step(stmt);
